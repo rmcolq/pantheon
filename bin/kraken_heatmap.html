@@ -1,9 +1,42 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Pantheon report for group</title>
+
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css"
+        integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
+
   <script src="https://cdn.jsdelivr.net/npm/vega@5.24.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.6.1"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.21.3"></script>
+  <script src="https://d3js.org/d3.v6.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-color@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-dispatch@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-ease@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-interpolate@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-selection@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-timer@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-transition@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-drag@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-zoom@3"></script>
+  <script src="https://unpkg.com/d3-array@1"></script>
+  <script src="https://unpkg.com/d3-collection@1"></script>
+  <script src="https://unpkg.com/d3-path@1"></script>
+  <script src="https://unpkg.com/d3-shape@1"></script>
+  <script src="https://unpkg.com/d3-sankey@0"></script>
+
+  <!-- Data table -->
+  <script src="https://cdn.jsdelivr.net/npm/simple-datatables@latest"></script>
+
+  <!-- Additional -->
+  {{ bokeh_resources }}
+  {{ resources }}
+  {{ script }}
 </head>
 <body>
   <div id="vis"/>
