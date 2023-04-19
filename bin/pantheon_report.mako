@@ -484,7 +484,16 @@
                 });
               }
         </script>
-        <div id="heatmapViz"></div>
+        <div class="row">
+             <div class="col-lg-8">
+                        <div id="heatmapViz"></div>
+             </div>
+             <div class="col-lg">
+                <div id="slider">
+                  <div id="oldchildslider"></div>
+                </div>
+             </div>
+        </div>
 
     <script>
     var vl_heatmap = {
@@ -498,6 +507,7 @@
       "params": [
         {
           "name": "rankSelector",
+          "value": null,
           "bind": {
             "input": "select",
             "options": [null, "D", "K", "P", "C", "O", "F", "G", "S"],
@@ -512,16 +522,27 @@
               "Genus",
               "Species"
             ],
-            "name": "Taxon Rank:"
+            "name": "Filter taxon rank:  "
           }
         },
         {
           "name": "readSelector",
+          "value": "downstream",
           "bind": {
             "input": "select",
             "options": ["downstream", "direct"],
             "labels": ["downstream", "direct"],
-            "name": "Include read counts for taxon that are:"
+            "name": "Colour by read counts for taxon that are:  "
+          }
+        },
+        {
+          "name": "groupSelector",
+          "value": null,
+          "bind": {
+            "input": "select",
+            "options": [null, "${group}"],
+            "labels": ["all", "cases"],
+            "name": "Show samples for:  "
           }
         },
         {
@@ -559,7 +580,7 @@
         }
       ],
       "data": {
-        "values": "${heatmap_data}", "format": {"type": "csv"}
+        "values": ${heatmap_data}
       },
       "layer": [
         {
@@ -577,17 +598,17 @@
               {"field": "taxon_ncbi", "type": "nominal"},
               {"field": "taxon_rank", "type": "nominal"},
               {"field": "sample", "type": "nominal"},
-              {"field": "num_reads", "type": "quantitative"},
-              {"field": "num_clade_reads", "type": "quantitative"},
-              {"field": "score", "type": "quantitative"},
-              {"field": "clade_score", "type": "quantitative"},
-              {"field": "case_frequency", "type": "quantitative"},
-              {"field": "control_frequency", "type": "quantitative"},
-              {"field": "clade_case_frequency", "type": "quantitative"},
-              {"field": "clade_control_frequency", "type": "quantitative"}
+              {"field": "direct_count", "type": "quantitative"},
+              {"field": "downstream_count", "type": "quantitative"},
+              {"field": "direct.score", "type": "quantitative"},
+              {"field": "direct.case_frequency", "type": "quantitative"},
+              {"field": "direct.control_frequency", "type": "quantitative"},
+              {"field": "downstream.score", "type": "quantitative"},
+              {"field": "downstream.case_frequency", "type": "quantitative"},
+              {"field": "downstream.control_frequency", "type": "quantitative"}
             ],
             "color": {
-              "field": "num_reads",
+              "field": "direct_count",
               "type": "quantitative",
               "scale": {"domain": [0, 1000]},
               "title": "Count of Reads",
@@ -611,50 +632,17 @@
               {"field": "taxon_ncbi", "type": "nominal"},
               {"field": "taxon_rank", "type": "nominal"},
               {"field": "sample", "type": "nominal"},
-              {"field": "num_reads", "type": "quantitative"},
-              {"field": "num_clade_reads", "type": "quantitative"},
-              {"field": "score", "type": "quantitative"},
-              {"field": "clade_score", "type": "quantitative"},
-              {"field": "case_frequency", "type": "quantitative"},
-              {"field": "control_frequency", "type": "quantitative"},
-              {"field": "clade_case_frequency", "type": "quantitative"},
-              {"field": "clade_control_frequency", "type": "quantitative"}
+              {"field": "direct_count", "type": "quantitative"},
+              {"field": "downstream_count", "type": "quantitative"},
+              {"field": "direct.score", "type": "quantitative"},
+              {"field": "direct.case_frequency", "type": "quantitative"},
+              {"field": "direct.control_frequency", "type": "quantitative"},
+              {"field": "downstream.score", "type": "quantitative"},
+              {"field": "downstream.case_frequency", "type": "quantitative"},
+              {"field": "downstream.control_frequency", "type": "quantitative"}
             ],
             "color": {
-              "condition": {
-                "value": "white",
-                "test": "readSelector == 'direct' && datum['num_reads'] == 0"
-              },
-              "value": null
-            }
-          }
-        },
-        {
-          "mark": "rect",
-          "encoding": {
-            "y": {"field": "taxon", "title": "Taxon", "type": "ordinal"},
-            "x": {
-              "field": "sample",
-              "title": "Sample",
-              "type": "ordinal",
-              "axis": {"labelOffset": 4, "labelPadding": 0}
-            },
-            "tooltip": [
-              {"field": "taxon", "type": "nominal"},
-              {"field": "taxon_ncbi", "type": "nominal"},
-              {"field": "taxon_rank", "type": "nominal"},
-              {"field": "sample", "type": "nominal"},
-              {"field": "num_reads", "type": "quantitative"},
-              {"field": "num_clade_reads", "type": "quantitative"},
-              {"field": "score", "type": "quantitative"},
-              {"field": "clade_score", "type": "quantitative"},
-              {"field": "case_frequency", "type": "quantitative"},
-              {"field": "control_frequency", "type": "quantitative"},
-              {"field": "clade_case_frequency", "type": "quantitative"},
-              {"field": "clade_control_frequency", "type": "quantitative"}
-            ],
-            "color": {
-              "field": "num_clade_reads",
+              "field": "downstream_count",
               "type": "quantitative",
               "scale": {"domain": [0, 1000]},
               "title": "Count of Reads",
@@ -678,19 +666,50 @@
               {"field": "taxon_ncbi", "type": "nominal"},
               {"field": "taxon_rank", "type": "nominal"},
               {"field": "sample", "type": "nominal"},
-              {"field": "num_reads", "type": "quantitative"},
-              {"field": "num_clade_reads", "type": "quantitative"},
-              {"field": "score", "type": "quantitative"},
-              {"field": "clade_score", "type": "quantitative"},
-              {"field": "case_frequency", "type": "quantitative"},
-              {"field": "control_frequency", "type": "quantitative"},
-              {"field": "clade_case_frequency", "type": "quantitative"},
-              {"field": "clade_control_frequency", "type": "quantitative"}
-            ],
+              {"field": "direct_count", "type": "quantitative"},
+              {"field": "downstream_count", "type": "quantitative"},
+              {"field": "direct.score", "type": "quantitative"},
+              {"field": "direct.case_frequency", "type": "quantitative"},
+              {"field": "direct.control_frequency", "type": "quantitative"},
+              {"field": "downstream.score", "type": "quantitative"},
+              {"field": "downstream.case_frequency", "type": "quantitative"},
+              {"field": "downstream.control_frequency", "type": "quantitative"}            ],
             "color": {
               "condition": {
                 "value": "white",
-                "test": "readSelector == 'downstream' && datum['num_clade_reads'] == 0"
+                "test": "readSelector == 'direct' && datum['direct_count'] == 0"
+              },
+              "value": null
+            }
+          }
+        },
+        {
+          "mark": "rect",
+          "encoding": {
+            "y": {"field": "taxon", "title": "Taxon", "type": "ordinal"},
+            "x": {
+              "field": "sample",
+              "title": "Sample",
+              "type": "ordinal",
+              "axis": {"labelOffset": 4, "labelPadding": 0}
+            },
+            "tooltip": [
+              {"field": "taxon", "type": "nominal"},
+              {"field": "taxon_ncbi", "type": "nominal"},
+              {"field": "taxon_rank", "type": "nominal"},
+              {"field": "sample", "type": "nominal"},
+              {"field": "direct_count", "type": "quantitative"},
+              {"field": "downstream_count", "type": "quantitative"},
+              {"field": "direct.score", "type": "quantitative"},
+              {"field": "direct.case_frequency", "type": "quantitative"},
+              {"field": "direct.control_frequency", "type": "quantitative"},
+              {"field": "downstream.score", "type": "quantitative"},
+              {"field": "downstream.case_frequency", "type": "quantitative"},
+              {"field": "downstream.control_frequency", "type": "quantitative"}            ],
+            "color": {
+              "condition": {
+                "value": "white",
+                "test": "readSelector == 'downstream' && datum['downstream_count'] == 0"
               },
               "value": null
             }
@@ -705,14 +724,19 @@
         {
           "filter": {
             "or": [
-              "readSelector == 'direct' && datum.score<=maxScore && datum.score>=minScore && datum.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_taxon_rank == rankSelector)",
-              "readSelector == 'downstream' && datum.clade_score<=maxScore && datum.clade_score>=minScore && datum.clade_case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_taxon_rank == rankSelector)"
+              "readSelector == 'direct' && datum.direct.score<=maxScore && datum.direct.score>=minScore && datum.direct.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_taxon_rank == rankSelector) &&(!groupSelector || datum.group == groupSelector)",
+              "readSelector == 'downstream' && datum.downstream.score<=maxScore && datum.downstream.score>=minScore && datum.downstream.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_taxon_rank == rankSelector) &&(!groupSelector || datum.group == groupSelector)"
             ]
           }
         }
       ]
     };
        vegaEmbed('#heatmapViz', vl_heatmap, {renderer: "svg"})
+                            .then(function(result) {
+                                const sliders = document.getElementsByClassName('vega-bindings');
+                                const newparent = document.getElementById('slider');
+                                const oldchild = document.getElementById("oldchildslider");
+                                newparent.replaceChild(sliders[0], oldchild)})
                             .then(result => console.log(result))
                             .catch(console.warn);
       </script>
