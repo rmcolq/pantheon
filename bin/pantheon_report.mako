@@ -450,12 +450,12 @@
       <a href="#" id="toTopBtn" class="cd-top text-replace js-cd-top cd-top--is-visible cd-top--fade-out" data-abc="true"></a>
       <div>
         <header class="piranha-header">
-          <div class="col-sm-4" style="text-align: left;">
+          <div class="col-sm-8" style="text-align: left;">
             <img class="piranha-logo" src="https://raw.githubusercontent.com/aineniamh/piranha/main/docs/poseco.svg" vertical-align="left" width="30" height="30"></img>
             mSCAPE | <small class="text-muted">metagenomics Surveillance Collaboraton and Analysis Programme</small>
           </div>
-          <div class="col-sm-8" style="text-align: right;">
-            pantheon | <small class="text-muted">Context comparison</small>
+          <div class="col-sm-4" style="text-align: right;">
+            pantheon | <small class="text-muted">Cluster comparison</small>
           </div>
           <br>
           <hr>
@@ -468,6 +468,258 @@
         </h1>
         <br>
       <% figure_count = 0 %>
+    <br>
+        <script>
+          var acc = document.getElementsByClassName("accordion");
+          var i;
+          for (i = 0; i < acc.length; i++) {
+                acc[i].addEventListener("click", function() {
+                  this.classList.toggle("active");
+                  var panel = this.nextElementSibling;
+                  if (panel.style.maxHeight) {
+                    panel.style.maxHeight = null;
+                  } else {
+                    panel.style.maxHeight = panel.scrollHeight*1.2 + "px";
+                  }
+                });
+              }
+        </script>
+        <div id="heatmapViz"></div>
+
+    <script>
+    var vl_heatmap = {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "height": 500,
+      "autosize": {
+          "type": "pad",
+          "contains": "content",
+          "resize": true
+        },
+      "params": [
+        {
+          "name": "rankSelector",
+          "bind": {
+            "input": "select",
+            "options": [null, "D", "K", "P", "C", "O", "F", "G", "S"],
+            "labels": [
+              "Show All",
+              "Domain",
+              "Kingdom",
+              "Phylum",
+              "Class",
+              "Order",
+              "Family",
+              "Genus",
+              "Species"
+            ],
+            "name": "Taxon Rank:"
+          }
+        },
+        {
+          "name": "readSelector",
+          "bind": {
+            "input": "select",
+            "options": ["downstream", "direct"],
+            "labels": ["downstream", "direct"],
+            "name": "Include read counts for taxon that are:"
+          }
+        },
+        {
+          "name": "minScore",
+          "value": 0.0,
+          "bind": {
+            "input": "range",
+            "min": -1,
+            "max": 1,
+            "step": 0.1,
+            "name": "Min score: "
+          }
+        },
+        {
+          "name": "maxScore",
+          "value": 1,
+          "bind": {
+            "input": "range",
+            "min": -1,
+            "max": 1,
+            "step": 0.1,
+            "name": "Max score: "
+          }
+        },
+        {
+          "name": "minReadCount",
+          "value": 100,
+          "bind": {
+            "input": "range",
+            "min": 0,
+            "max": 500,
+            "step": 10,
+            "name": "Min read count: "
+          }
+        }
+      ],
+      "data": {
+        "values": "${heatmap_data}", "format": {"type": "csv"}
+      },
+      "layer": [
+        {
+          "mark": "rect",
+          "encoding": {
+            "y": {"field": "taxon", "title": "Taxon", "type": "ordinal"},
+            "x": {
+              "field": "sample",
+              "title": "Sample",
+              "type": "ordinal",
+              "axis": {"labelOffset": 4, "labelPadding": 0}
+            },
+            "tooltip": [
+              {"field": "taxon", "type": "nominal"},
+              {"field": "taxon_ncbi", "type": "nominal"},
+              {"field": "taxon_rank", "type": "nominal"},
+              {"field": "sample", "type": "nominal"},
+              {"field": "num_reads", "type": "quantitative"},
+              {"field": "num_clade_reads", "type": "quantitative"},
+              {"field": "score", "type": "quantitative"},
+              {"field": "clade_score", "type": "quantitative"},
+              {"field": "case_frequency", "type": "quantitative"},
+              {"field": "control_frequency", "type": "quantitative"},
+              {"field": "clade_case_frequency", "type": "quantitative"},
+              {"field": "clade_control_frequency", "type": "quantitative"}
+            ],
+            "color": {
+              "field": "num_reads",
+              "type": "quantitative",
+              "scale": {"domain": [0, 1000]},
+              "title": "Count of Reads",
+              "legend": {"direction": "horizontal", "gradientLength": 120},
+              "condition": {"value": null, "test": "readSelector == 'downstream'"}
+            }
+          }
+        },
+        {
+          "mark": "rect",
+          "encoding": {
+            "y": {"field": "taxon", "title": "Taxon", "type": "ordinal"},
+            "x": {
+              "field": "sample",
+              "title": "Sample",
+              "type": "ordinal",
+              "axis": {"labelOffset": 4, "labelPadding": 0}
+            },
+            "tooltip": [
+              {"field": "taxon", "type": "nominal"},
+              {"field": "taxon_ncbi", "type": "nominal"},
+              {"field": "taxon_rank", "type": "nominal"},
+              {"field": "sample", "type": "nominal"},
+              {"field": "num_reads", "type": "quantitative"},
+              {"field": "num_clade_reads", "type": "quantitative"},
+              {"field": "score", "type": "quantitative"},
+              {"field": "clade_score", "type": "quantitative"},
+              {"field": "case_frequency", "type": "quantitative"},
+              {"field": "control_frequency", "type": "quantitative"},
+              {"field": "clade_case_frequency", "type": "quantitative"},
+              {"field": "clade_control_frequency", "type": "quantitative"}
+            ],
+            "color": {
+              "condition": {
+                "value": "white",
+                "test": "readSelector == 'direct' && datum['num_reads'] == 0"
+              },
+              "value": null
+            }
+          }
+        },
+        {
+          "mark": "rect",
+          "encoding": {
+            "y": {"field": "taxon", "title": "Taxon", "type": "ordinal"},
+            "x": {
+              "field": "sample",
+              "title": "Sample",
+              "type": "ordinal",
+              "axis": {"labelOffset": 4, "labelPadding": 0}
+            },
+            "tooltip": [
+              {"field": "taxon", "type": "nominal"},
+              {"field": "taxon_ncbi", "type": "nominal"},
+              {"field": "taxon_rank", "type": "nominal"},
+              {"field": "sample", "type": "nominal"},
+              {"field": "num_reads", "type": "quantitative"},
+              {"field": "num_clade_reads", "type": "quantitative"},
+              {"field": "score", "type": "quantitative"},
+              {"field": "clade_score", "type": "quantitative"},
+              {"field": "case_frequency", "type": "quantitative"},
+              {"field": "control_frequency", "type": "quantitative"},
+              {"field": "clade_case_frequency", "type": "quantitative"},
+              {"field": "clade_control_frequency", "type": "quantitative"}
+            ],
+            "color": {
+              "field": "num_clade_reads",
+              "type": "quantitative",
+              "scale": {"domain": [0, 1000]},
+              "title": "Count of Reads",
+              "legend": {"direction": "horizontal", "gradientLength": 120},
+              "condition": {"value": null, "test": "readSelector == 'direct'"}
+            }
+          }
+        },
+        {
+          "mark": "rect",
+          "encoding": {
+            "y": {"field": "taxon", "title": "Taxon", "type": "ordinal"},
+            "x": {
+              "field": "sample",
+              "title": "Sample",
+              "type": "ordinal",
+              "axis": {"labelOffset": 4, "labelPadding": 0}
+            },
+            "tooltip": [
+              {"field": "taxon", "type": "nominal"},
+              {"field": "taxon_ncbi", "type": "nominal"},
+              {"field": "taxon_rank", "type": "nominal"},
+              {"field": "sample", "type": "nominal"},
+              {"field": "num_reads", "type": "quantitative"},
+              {"field": "num_clade_reads", "type": "quantitative"},
+              {"field": "score", "type": "quantitative"},
+              {"field": "clade_score", "type": "quantitative"},
+              {"field": "case_frequency", "type": "quantitative"},
+              {"field": "control_frequency", "type": "quantitative"},
+              {"field": "clade_case_frequency", "type": "quantitative"},
+              {"field": "clade_control_frequency", "type": "quantitative"}
+            ],
+            "color": {
+              "condition": {
+                "value": "white",
+                "test": "readSelector == 'downstream' && datum['num_clade_reads'] == 0"
+              },
+              "value": null
+            }
+          }
+        }
+      ],
+      "config": {
+        "axis": {"grid": true, "tickBand": "extent"},
+        "legend": {"orient": "right", "layout": {"right": {"anchor": "top"}}}
+      },
+      "transform": [
+        {
+          "filter": {
+            "or": [
+              "readSelector == 'direct' && datum.score<=maxScore && datum.score>=minScore && datum.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_taxon_rank == rankSelector)",
+              "readSelector == 'downstream' && datum.clade_score<=maxScore && datum.clade_score>=minScore && datum.clade_case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_taxon_rank == rankSelector)"
+            ]
+          }
+        }
+      ]
+    };
+       vegaEmbed('#heatmapViz', vl_heatmap, {renderer: "svg"})
+                            .then(result => console.log(result))
+                            .catch(console.warn);
+      </script>
+
+         <h3><strong>Figure 1</strong> | Heatmap of Bracken counts </h3>
+         <br>
+        </div>
 
     <footer class="page-footer">
       <div class="container-fluid text-right text-md-right">
@@ -480,7 +732,7 @@
         </div>
 
       <div class="col-sm-11" style="text-align: right;">
-        pantheon ${version} | <small class="text-muted">Poliovirus Investigation Resource Automating Nanopore Haplotype Analysis</small> <br><small class="text-muted">GNU General Public License v3.0</small></div>
+        pantheon ${version} | <small class="text-muted">Cluster comparison</small> <br><small class="text-muted">GNU General Public License v3.0</small></div>
 
         <br><br>
         </p>
