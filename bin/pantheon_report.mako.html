@@ -7,9 +7,9 @@
 
     <meta name="description" content="">
     <meta name="author" content="">
-    <link rel="icon" href="https://raw.githubusercontent.com/aineniamh/piranha/main/docs/piranha.svg">
+    <link rel="icon" href="https://raw.githubusercontent.com/rmcolq/pantheon/main/docs/mscape.svg">
 
-    <title>${sample} report</title>
+    <title>${group} report</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
     <script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha384-nvAa0+6Qg9clwYCGGPpDQLVpLNn0fRaROjHqs13t4Ggj3Ez50XnGQqc/r8MhnRDZ" crossorigin="anonymous"></script>
     <link href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.min.css" rel="stylesheet" type="text/css" />
@@ -28,8 +28,8 @@
     <script src="https://github.com/devongovett/blob-stream/releases/download/v0.1.3/blob-stream.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/svg-to-pdfkit/source.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vega@5.22.1"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.2.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.11.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.2.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.11.1"></script>
 
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -346,7 +346,7 @@
                   .container {
                     min-width: 210mm !important;
                   }
-                  .piranha-header {
+                  .mscape-header {
                     position:relative;
                     top: 0;
                     top: 0px;
@@ -449,9 +449,9 @@
     <div class="container">
       <a href="#" id="toTopBtn" class="cd-top text-replace js-cd-top cd-top--is-visible cd-top--fade-out" data-abc="true"></a>
       <div>
-        <header class="piranha-header">
+        <header class="mscape-header">
           <div class="col-sm-8" style="text-align: left;">
-            <img class="piranha-logo" src="https://raw.githubusercontent.com/aineniamh/piranha/main/docs/poseco.svg" vertical-align="left" width="30" height="30"></img>
+            <img class="mscape-logo" src="https://raw.githubusercontent.com/rmcolq/pantheon/main/docs/mscape.svg" vertical-align="left" width="30" height="30"></img>
             mSCAPE | <small class="text-muted">metagenomics Surveillance Collaboraton and Analysis Programme</small>
           </div>
           <div class="col-sm-4" style="text-align: right;">
@@ -463,7 +463,7 @@
         <div class="spacer">
           &nbsp;
         </div>
-        <h1>${sample} report
+        <h1>${group} report
             <small class="text-muted" style="color:${themeColor}">${date}</small>
         </h1>
         <br>
@@ -498,7 +498,7 @@
     <script>
     var vl_heatmap = {
       "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-      "height": 500,
+      "height": 1000,
       "autosize": {
           "type": "pad",
           "contains": "content",
@@ -580,7 +580,7 @@
         }
       ],
       "data": {
-        "values": ${heatmap_data}
+        "values":${heatmap_data}
       },
       "layer": [
         {
@@ -751,7 +751,7 @@
         <div class="row">
           <div class="col-sm-1">
             <p>
-            <img class="piranha-logo" src="https://raw.githubusercontent.com/aineniamh/piranha/main/docs/piranha.svg?token=GHSAT0AAAAAABHOJJPRFXUJULWKXQA5SVOMYP46NBA" vertical-align="left" width="50" height="50"></img>
+            <img class="pantheon-logo" src="https://raw.githubusercontent.com/rmcolq/pantheon/main/docs/pantheon.svg" vertical-align="left" width="50" height="50"></img>
             <p>
         </div>
 
