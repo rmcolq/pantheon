@@ -127,34 +127,22 @@ def make_data_dict(taxon_info, group_scores, sample_counts, group_map, totals, m
     return data_list
 
 def make_output_report(report_to_generate, template, group, data_for_report= {"HEATMAP_DATA":""}):
-
-    # collate data for tables in the report
-    print("have data")
-
     template_dir = os.path.abspath(os.path.dirname(__file__))
-
     mylookup = TemplateLookup(directories=[template_dir]) #absolute or relative works
-    print(mylookup)
-    print("found template")
     mytemplate = mylookup.get_template(template)
-    print(mytemplate)
+
     buf = StringIO()
 
     ctx = Context(buf,
                     date = date.today(),
-                    run_name="test_runname",
                     version = "__version__",
-                    sample="sample",
                     group=group,
                     heatmap_data = data_for_report["HEATMAP_DATA"])
-    print("context")
 
     try:
         mytemplate.render_context(ctx)
-        print("render")
 
     except:
-        print("failed")
         traceback = RichTraceback()
         for (filename, lineno, function, line) in traceback.traceback:
             print("File %s, line %s, in %s" % (filename, lineno, function))
@@ -171,8 +159,9 @@ def main():
 
     parser.add_argument("--input", help="CSV file with ID,group,filepath", required=True)
 
-    parser.add_argument("--output", help="HTML output file summarizing counts", default="report.html")
-    parser.add_argument("--template", help="HTML template for report", default="pantheon_report.mako")
+    parser.add_argument("--prefix", help="HTML output prefix ", default="pantheon")
+
+    parser.add_argument("--template", help="HTML template for report", default="pantheon_report.mako.html")
     parser.add_argument("--min_reads", type=int, help="Threshold for min number reads", default=10)
 
     args = parser.parse_args()
@@ -183,14 +172,16 @@ def main():
     sample_counts,taxon_info,totals = get_sample_counts(list(groups["all"].keys()), groups["all"])
     group_scores = get_scores(sample_counts, taxon_info, groups)
 
-    for group in groups:
-        if group == "all":
-            continue
-        if group == "control":
-            continue
+    relevant_groups = [g for g in groups if g not in ["all", "control", "controls"]]
+    for group in relevant_groups:
+        outfile = args.prefix
+        if len(relevant_groups) > 1:
+            outfile += "_" + group
+        outfile += "_report.html"
+
         data_list = make_data_dict(taxon_info, group_scores[group], sample_counts, group_map, totals, args.min_reads)
         data_for_report["HEATMAP_DATA"] = data_list
-        make_output_report(args.output, args.template, group, data_for_report)
+        make_output_report(outfile, args.template, group, data_for_report)
 
 
 if __name__ == "__main__":

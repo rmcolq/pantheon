@@ -5,6 +5,7 @@ import argparse
 
 def groups_from_csv(csv_file):
     groups = defaultdict(lambda: defaultdict(str))
+    group_map = defaultdict()
 
     with open(csv_file, 'r') as in_csv:
         for line in in_csv:
@@ -12,7 +13,8 @@ def groups_from_csv(csv_file):
             filepath = Path(filepath)
             groups[group][id] = filepath
             groups["all"][id] = filepath
-    return groups
+            group_map[id] = group
+    return groups, group_map
 
 def get_sample_counts(samples,sample_id_to_filepath,list_taxons=None,sample_counts=None, sample_clade_counts=None, totals=None):
     if not sample_counts:
@@ -66,10 +68,10 @@ def add_scores(sample_counts, cases, controls):
         sample_counts[taxon]['control_max_read_count'] = max(control_counts)
     return sample_counts
 
-def make_csv(samples, sample_counts, sample_clade_counts, totals, min_read_count=10):
+def make_csv_string(samples, group_map, sample_counts, sample_clade_counts, totals, min_read_count=10):
     csv_string = ""
 
-    header = "sample,taxon,taxon_ncbi,taxon_rank,simple_taxon_rank,num_reads,num_clade_reads,sample_total,score,case_frequency,control_frequency,case_max_read_count,control_max_read_count,clade_score,clade_case_frequency,clade_control_frequency,clade_case_max_read_count,clade_control_max_read_count\\n"
+    header = "sample,group,taxon,taxon_ncbi,taxon_rank,simple_taxon_rank,num_reads,num_clade_reads,sample_total,score,case_frequency,control_frequency,case_max_read_count,control_max_read_count,clade_score,clade_case_frequency,clade_control_frequency,clade_case_max_read_count,clade_control_max_read_count\\n"
     csv_string += header
     for taxon in sample_counts:
         if sample_counts[taxon]["case_max_read_count"] < min_read_count and sample_clade_counts[taxon]["case_max_read_count"] < min_read_count:
@@ -78,7 +80,23 @@ def make_csv(samples, sample_counts, sample_clade_counts, totals, min_read_count
         common_data_clade = "%f,%f,%f,%i,%i"%(sample_clade_counts[taxon]["score"],sample_clade_counts[taxon]["case_frequency"],sample_clade_counts[taxon]["control_frequency"],sample_clade_counts[taxon]["case_max_read_count"],sample_clade_counts[taxon]["control_max_read_count"])
 
         for sample in samples:
-                csv_string += "%s,%s,%s,%s,%s,%i,%i,%i,%s,%s\\n" %(sample, taxon, sample_counts[taxon]["ncbi_taxon"], sample_counts[taxon]["rank"], sample_counts[taxon]["simple_rank"], sample_counts[taxon][sample], sample_clade_counts[taxon][sample], totals[sample], common_data_raw, common_data_clade)
+                csv_string += "%s,%s,%s,%s,%s,%s,%i,%i,%i,%s,%s\\n" %(sample, group_map[sample], taxon, sample_counts[taxon]["ncbi_taxon"], sample_counts[taxon]["rank"], sample_counts[taxon]["simple_rank"], sample_counts[taxon][sample], sample_clade_counts[taxon][sample], totals[sample], common_data_raw, common_data_clade)
+    return csv_string
+
+def make_json_string(samples, group_map, sample_counts, sample_clade_counts, totals, min_read_count=10):
+    data_dict = {}
+
+
+    header = "sample,group,taxon,taxon_ncbi,taxon_rank,simple_taxon_rank,num_reads,num_clade_reads,sample_total,score,case_frequency,control_frequency,case_max_read_count,control_max_read_count,clade_score,clade_case_frequency,clade_control_frequency,clade_case_max_read_count,clade_control_max_read_count\\n"
+    csv_string += header
+    for taxon in sample_counts:
+        if sample_counts[taxon]["case_max_read_count"] < min_read_count and sample_clade_counts[taxon]["case_max_read_count"] < min_read_count:
+            continue
+        common_data_raw = "%f,%f,%f,%i,%i"%(sample_counts[taxon]["score"],sample_counts[taxon]["case_frequency"],sample_counts[taxon]["control_frequency"],sample_counts[taxon]["case_max_read_count"],sample_counts[taxon]["control_max_read_count"])
+        common_data_clade = "%f,%f,%f,%i,%i"%(sample_clade_counts[taxon]["score"],sample_clade_counts[taxon]["case_frequency"],sample_clade_counts[taxon]["control_frequency"],sample_clade_counts[taxon]["case_max_read_count"],sample_clade_counts[taxon]["control_max_read_count"])
+
+        for sample in samples:
+                csv_string += "%s,%s,%s,%s,%s,%s,%i,%i,%i,%s,%s\\n" %(sample, group_map[sample], taxon, sample_counts[taxon]["ncbi_taxon"], sample_counts[taxon]["rank"], sample_counts[taxon]["simple_rank"], sample_counts[taxon][sample], sample_clade_counts[taxon][sample], totals[sample], common_data_raw, common_data_clade)
     return csv_string
 
 def main():
@@ -93,7 +111,7 @@ def main():
 
     args = parser.parse_args()
 
-    groups = groups_from_csv(args.input)
+    groups, group_map = groups_from_csv(args.input)
     sample_counts,sample_clade_counts,totals = get_sample_counts(list(groups["all"].keys()), groups["all"])
     for group in groups:
         if group == "all":
@@ -101,7 +119,7 @@ def main():
         controls = [n for n in groups["all"] if n not in groups[group]]
         sample_counts = add_scores(sample_counts, groups[group], controls)
         sample_clade_counts = add_scores(sample_clade_counts, groups[group], controls)
-        csv_string = make_csv(list(groups["all"].keys()), sample_counts, sample_clade_counts, totals, args.min_num_reads)
+        csv_string = make_csv_string(list(groups["all"].keys()), group_map, sample_counts, sample_clade_counts, totals, args.min_num_reads)
 
         templ = None
         with open(args.template, "r") as heatmap_template:
