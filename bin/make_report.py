@@ -137,7 +137,7 @@ def make_output_report(report_to_generate, template, group, data_for_report= {"H
                     date = date.today(),
                     version = "__version__",
                     group=group,
-                    heatmap_data = data_for_report["HEATMAP_DATA"])
+                    data_for_report = data_for_report)
 
     try:
         mytemplate.render_context(ctx)
@@ -181,6 +181,9 @@ def main():
 
         data_list = make_data_dict(taxon_info, group_scores[group], sample_counts, group_map, totals, args.min_reads)
         data_for_report["HEATMAP_DATA"] = data_list
+        data_for_report["summary_table"] = ""
+        data_for_report["summary_table_header"] = ["sample","barcode","group","status","warnings"]
+        data_for_report["detailed_csv_out"] = ""
         make_output_report(outfile, args.template, group, data_for_report)
 
 

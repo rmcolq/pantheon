@@ -484,6 +484,57 @@
                 });
               }
         </script>
+        <br>
+        <h3><strong>Table 1</strong> | Run summary information </h3>
+        <button class="accordion">Export table</button>
+        <div class="panel">
+          <div class="row">
+            <div class="col-sm-2" ><strong>Export table: </strong></div>
+            <div class="col-sm-4" id="tableExportID1"></div>
+          </div>
+        </div>
+        <table class="display nowrap" id="myTable1">
+          <thead>
+          <tr>
+            %for col in data_for_report["summary_table_header"]:
+            <th>${col.title().replace("_"," ")}</th>
+            %endfor
+          </tr>
+          </thead>
+          <tbody>
+          % for row in data_for_report["summary_table"]:
+          % for col in data_for_report["summary_table_header"]:
+
+          %if col=="sample":
+          <% this_barcode = row["barcode"] %>
+          <td><a href="./${this_barcode}_report.txt" target="_blank" style="color:${themeColor}"><strong>${row[col]}</strong></a></td>
+          %else:
+          <td>${row[col]}</td>
+          %endif
+          %endfor
+          <td><a download href="published_data/${this_barcode}/${this_barcode}.consensus.fasta" style="color:${themeColor}"><strong>Download FASTA</strong></a></td>
+          </tr>
+          % endfor
+          </tbody>
+        </table>
+        <script type="text/javascript">
+          $(document).ready( function () {
+            var table = $('#myTable1').DataTable({
+              select: {
+                style: 'multi'
+              },
+              'iDisplayLength': 100,
+              "paging": false,
+              "border-bottom":false,
+              "bInfo" : false,
+              dom: 'frtip',
+              buttons: ["copy","csv","print"]
+            });
+            table.buttons().container().appendTo( $('#tableExportID1') );
+
+          } );
+        </script>
+        <br>
         <div class="row">
              <div class="col-lg-8">
                         <div id="heatmapViz"></div>
@@ -580,7 +631,7 @@
         }
       ],
       "data": {
-        "values":${heatmap_data}
+        "values":${data_for_report["HEATMAP_DATA"]}
       },
       "layer": [
         {
