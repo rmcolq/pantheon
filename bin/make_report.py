@@ -12,26 +12,46 @@ from mako.exceptions import RichTraceback
 from io import StringIO
 import os
 from Bio import SeqIO
+import sys
 
-def groups_from_csv(csv_file):
+def groups_from_csv(csv_file, summary_table=[], summary_table_headers=[]):
     groups = defaultdict(lambda: defaultdict(str))
     group_map = defaultdict()
 
     with open(csv_file, 'r') as in_csv:
-        header = True
-        for line in in_csv:
-            if header:
-                header = False
-                continue
-            try:
-                id,group,filepath = line.strip().split(",")
-            except:
-                id,filepath = line.strip().split(",")
-                group = "case"
-            filepath = Path(filepath)
+        try:
+            reader = csv.DictReader(in_csv, delimiter=",", quotechar='\"', dialect = "unix")
+        except:
+            reader = csv.DictReader(in_csv, delimiter="\t", quotechar='\"', dialect = "unix")
+
+        for col in ["sample_id", "filepath"]:
+            if col not in reader.fieldnames:
+                sys.exit("At a minimum, input file needs a sample_id and filepath column. Existing columns are %s" %reader.fieldnames)
+
+        group = "case"
+        barcode = None
+        for row in reader:
+            id = row["sample_id"]
+            filepath = Path(row["filepath"])
+
+            if "barcode" in row:
+                barcode = row["barcode"]
+            if "group" in row:
+                group = row["group"]
+
+            if group.lower() in ["negative control", "negative controls", "negative_control", "negative_controls", "nc", "negative"]:
+                group = "negative_control"
+            elif group.lower() in ["control", "controls"]:
+                group = "control"
+
             groups[group][id] = filepath
             groups["all"][id] = filepath
             group_map[id] = group
+            table_row = {"sample":id, "barcode":barcode, "group":group}
+            for header in summary_table_headers:
+                if header not in table_row:
+                    table_row[header] = None
+            summary_table.append(table_row)
     return groups, group_map
 
 def get_sample_counts(samples,sample_id_to_filepath,list_taxons=None,sample_counts=None, taxon_info=None, totals=None):
@@ -72,14 +92,32 @@ def get_sample_counts(samples,sample_id_to_filepath,list_taxons=None,sample_coun
 
 def get_scores(sample_counts, taxon_info, groups):
     group_scores = {}
+
+    if "negative_control" in groups:
+        negative_controls = groups["negative_control"]
+    else:
+        negative_controls = []
+
     for group in groups:
-        if group == "all":
+        if group in ["all", "control", "negative_control"]:
             continue
         group_scores[group] = {"direct": {}, "downstream":{}}
         cases = groups[group]
-        controls = [n for n in groups["all"] if n not in groups[group]]
+        if "control" in groups:
+            controls = groups["control"]
+        else:
+            controls = [n for n in groups["all"] if n not in groups[group]]
+
+        print("group", group)
+        print(cases)
+        print(controls)
+        print(negative_controls)
+
         num_cases = len(cases)
         num_controls = max(len(controls),1)
+        num_negative_controls = max(len(negative_controls),1)
+
+        print(num_cases, num_controls, num_negative_controls)
 
         for taxon in taxon_info:
             group_scores[group]["direct"][taxon] = {}
@@ -87,14 +125,19 @@ def get_scores(sample_counts, taxon_info, groups):
 
             for read_type in ["direct", "downstream"]:
 
-
                 case_freq = sum([1 for case in cases if sample_counts[taxon][read_type][case] > 0]) / float(num_cases)
                 control_count = sum([1 for control in controls if sample_counts[taxon][read_type][control] > 0])
                 control_freq = control_count/float(num_controls)
+                negative_control_count = sum([1 for control in negative_controls if sample_counts[taxon][read_type][control] > 0])
+                negative_control_freq = negative_control_count/float(num_negative_controls)
 
-                group_scores[group][read_type][taxon]['score'] = case_freq - control_freq
+
                 group_scores[group][read_type][taxon]['case_frequency'] = case_freq
                 group_scores[group][read_type][taxon]['control_frequency'] = control_freq
+                group_scores[group][read_type][taxon]['negative_control_frequency'] = negative_control_freq
+                group_scores[group][read_type][taxon]['score'] = case_freq - control_freq - negative_control_freq
+                #print(case_freq, control_freq, negative_control_freq, case_freq - control_freq - negative_control_freq)
+
                 group_scores[group][read_type][taxon]['case_max_read_count'] = max([sample_counts[taxon][read_type][case] for case in cases])
                 control_counts = [sample_counts[taxon][read_type][control] for control in controls]
                 control_counts.append(0)
@@ -126,7 +169,7 @@ def make_data_dict(taxon_info, group_scores, sample_counts, group_map, totals, m
 
     return data_list
 
-def make_output_report(report_to_generate, template, group, data_for_report= {"HEATMAP_DATA":""}):
+def make_output_report(report_to_generate, template, group, data_for_report= {"heatmap_data":"", "summary_table":""}):
     template_dir = os.path.abspath(os.path.dirname(__file__))
     mylookup = TemplateLookup(directories=[template_dir]) #absolute or relative works
     mytemplate = mylookup.get_template(template)
@@ -157,7 +200,7 @@ def make_output_report(report_to_generate, template, group, data_for_report= {"H
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--input", help="CSV file with ID,group,filepath", required=True)
+    parser.add_argument("--input", help="CSV file with sample_id,group,filepath", required=True)
 
     parser.add_argument("--prefix", help="HTML output prefix ", default="pantheon")
 
@@ -166,13 +209,15 @@ def main():
 
     args = parser.parse_args()
 
-    data_for_report = {}
+    data_for_report = {"heatmap_data":""}
+    data_for_report["summary_table_header"] = ["sample","barcode","group","status","warnings"]
+    data_for_report["summary_table"] = []
 
-    groups, group_map = groups_from_csv(args.input)
+    groups, group_map = groups_from_csv(args.input, data_for_report["summary_table"], data_for_report["summary_table_header"])
     sample_counts,taxon_info,totals = get_sample_counts(list(groups["all"].keys()), groups["all"])
     group_scores = get_scores(sample_counts, taxon_info, groups)
 
-    relevant_groups = [g for g in groups if g not in ["all", "control", "controls"]]
+    relevant_groups = [g for g in groups if g not in ["all", "control", "negative_control"]]
     for group in relevant_groups:
         outfile = args.prefix
         if len(relevant_groups) > 1:
@@ -180,10 +225,8 @@ def main():
         outfile += "_report.html"
 
         data_list = make_data_dict(taxon_info, group_scores[group], sample_counts, group_map, totals, args.min_reads)
-        data_for_report["HEATMAP_DATA"] = data_list
-        data_for_report["summary_table"] = ""
-        data_for_report["summary_table_header"] = ["sample","barcode","group","status","warnings"]
-        data_for_report["detailed_csv_out"] = ""
+        data_for_report["heatmap_data"] = data_list
+
         make_output_report(outfile, args.template, group, data_for_report)
 
 

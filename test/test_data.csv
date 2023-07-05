@@ -1,7 +1,7 @@
-sample_id,group,filepath
-case_2,case,case_2_report.txt
-case_3,case,case_3_report.txt
-case_4,case,case_4_report.txt
-control_1,control,control_1_report.txt
-control_2,control,control_2_report.txt
-control_3,control,control_3_report.txt
+sample_id,group,barcode,filepath
+case_2,case,BC01,case_2_report.txt
+case_3,case,BC02,case_3_report.txt
+case_4,case,BC05,case_4_report.txt
+control_1,control,BC03,control_1_report.txt
+control_2,control,BC04,control_2_report.txt
+control_3,negative_control,BC06,control_3_report.txt
