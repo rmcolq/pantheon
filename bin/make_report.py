@@ -28,9 +28,12 @@ def groups_from_csv(csv_file, summary_table=[], summary_table_headers=[]):
             if col not in reader.fieldnames:
                 sys.exit("At a minimum, input file needs a sample_id and filepath column. Existing columns are %s" %reader.fieldnames)
 
-        group = "case"
-        barcode = None
+
         for row in reader:
+            group = "case"
+            barcode = None
+            report = None
+
             id = row["sample_id"]
             filepath = Path(row["filepath"])
 
@@ -38,6 +41,8 @@ def groups_from_csv(csv_file, summary_table=[], summary_table_headers=[]):
                 barcode = row["barcode"]
             if "group" in row:
                 group = row["group"]
+            if "report" in row:
+                report = row["report"]
 
             if group.lower() in ["negative control", "negative controls", "negative_control", "negative_controls", "nc", "negative"]:
                 group = "negative_control"
@@ -47,7 +52,7 @@ def groups_from_csv(csv_file, summary_table=[], summary_table_headers=[]):
             groups[group][id] = filepath
             groups["all"][id] = filepath
             group_map[id] = group
-            table_row = {"sample":id, "barcode":barcode, "group":group}
+            table_row = {"sample":id, "barcode":barcode, "group":group, "report":report}
             for header in summary_table_headers:
                 if header not in table_row:
                     table_row[header] = None
@@ -90,6 +95,43 @@ def get_sample_counts(samples,sample_id_to_filepath,list_taxons=None,sample_coun
 
     return sample_counts, taxon_info, totals
 
+def get_group_scores(cases,controls,negative_controls,sample_counts, taxon_info):
+    print(cases)
+    print(controls)
+    print(negative_controls)
+
+    num_cases = len(cases)
+    num_controls = max(len(controls),1)
+    num_negative_controls = max(len(negative_controls),1)
+    print(num_cases, num_controls, num_negative_controls)
+
+    group_scores = {"direct": {}, "downstream":{}}
+    for taxon in taxon_info:
+        group_scores["direct"][taxon] = {}
+        group_scores["downstream"][taxon] = {}
+
+        for read_type in ["direct", "downstream"]:
+
+            case_freq = sum([1 for case in cases if sample_counts[taxon][read_type][case] > 0]) / float(num_cases)
+            control_count = sum([1 for control in controls if sample_counts[taxon][read_type][control] > 0])
+            control_freq = control_count/float(num_controls)
+            negative_control_count = sum([1 for control in negative_controls if sample_counts[taxon][read_type][control] > 0])
+            negative_control_freq = negative_control_count/float(num_negative_controls)
+
+
+            group_scores[read_type][taxon]['case_frequency'] = case_freq
+            group_scores[read_type][taxon]['control_frequency'] = control_freq
+            group_scores[read_type][taxon]['negative_control_frequency'] = negative_control_freq
+            group_scores[read_type][taxon]['score'] = case_freq - control_freq - negative_control_freq
+            #print(case_freq, control_freq, negative_control_freq, case_freq - control_freq - negative_control_freq)
+
+            group_scores[read_type][taxon]['case_max_read_count'] = max([sample_counts[taxon][read_type][case] for case in cases])
+            control_counts = [sample_counts[taxon][read_type][control] for control in controls]
+            control_counts.append(0)
+            group_scores[read_type][taxon]['control_max_read_count'] = max(control_counts)
+    return group_scores
+
+
 def get_scores(sample_counts, taxon_info, groups):
     group_scores = {}
 
@@ -101,7 +143,7 @@ def get_scores(sample_counts, taxon_info, groups):
     for group in groups:
         if group in ["all", "control", "negative_control"]:
             continue
-        group_scores[group] = {"direct": {}, "downstream":{}}
+
         cases = groups[group]
         if "control" in groups:
             controls = groups["control"]
@@ -109,39 +151,15 @@ def get_scores(sample_counts, taxon_info, groups):
             controls = [n for n in groups["all"] if n not in groups[group]]
 
         print("group", group)
-        print(cases)
-        print(controls)
-        print(negative_controls)
-
-        num_cases = len(cases)
-        num_controls = max(len(controls),1)
-        num_negative_controls = max(len(negative_controls),1)
-
-        print(num_cases, num_controls, num_negative_controls)
-
-        for taxon in taxon_info:
-            group_scores[group]["direct"][taxon] = {}
-            group_scores[group]["downstream"][taxon] = {}
-
-            for read_type in ["direct", "downstream"]:
-
-                case_freq = sum([1 for case in cases if sample_counts[taxon][read_type][case] > 0]) / float(num_cases)
-                control_count = sum([1 for control in controls if sample_counts[taxon][read_type][control] > 0])
-                control_freq = control_count/float(num_controls)
-                negative_control_count = sum([1 for control in negative_controls if sample_counts[taxon][read_type][control] > 0])
-                negative_control_freq = negative_control_count/float(num_negative_controls)
+        group_scores[group] = get_group_scores(cases,controls,negative_controls,sample_counts, taxon_info)
 
 
-                group_scores[group][read_type][taxon]['case_frequency'] = case_freq
-                group_scores[group][read_type][taxon]['control_frequency'] = control_freq
-                group_scores[group][read_type][taxon]['negative_control_frequency'] = negative_control_freq
-                group_scores[group][read_type][taxon]['score'] = case_freq - control_freq - negative_control_freq
-                #print(case_freq, control_freq, negative_control_freq, case_freq - control_freq - negative_control_freq)
+    # Add a summary group for all
+    group = "all"
+    cases = [n for n in groups["all"] if n not in negative_controls]
+    controls = []
+    group_scores[group] = get_group_scores(cases,controls,negative_controls,sample_counts, taxon_info)
 
-                group_scores[group][read_type][taxon]['case_max_read_count'] = max([sample_counts[taxon][read_type][case] for case in cases])
-                control_counts = [sample_counts[taxon][read_type][control] for control in controls]
-                control_counts.append(0)
-                group_scores[group][read_type][taxon]['control_max_read_count'] = max(control_counts)
     return group_scores
 
 def make_data_dict(taxon_info, group_scores, sample_counts, group_map, totals, min_read_count=10):
@@ -218,6 +236,9 @@ def main():
     group_scores = get_scores(sample_counts, taxon_info, groups)
 
     relevant_groups = [g for g in groups if g not in ["all", "control", "negative_control"]]
+    if len(relevant_groups) > 1:
+        relevant_groups.append("all")
+
     for group in relevant_groups:
         outfile = args.prefix
         if len(relevant_groups) > 1:
