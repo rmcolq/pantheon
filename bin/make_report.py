@@ -71,6 +71,8 @@ def get_sample_counts(samples,sample_id_to_filepath,list_taxons=None,sample_coun
         file = sample_id_to_filepath[sample_id]
         with file.open('r') as csv_in:
             for line in csv_in:
+                if line.startswith("%"):
+                    continue
                 try:
                     percentage, num_clade_root, num_direct, rank, ncbi, name = line.strip().split('\t')
                 except:
