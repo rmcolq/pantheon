@@ -14,7 +14,42 @@ import os
 from Bio import SeqIO
 import sys
 
-def groups_from_csv(csv_file, summary_table=[], summary_table_headers=[]):
+def get_summary_info(input, additional_csvs):
+    list_csvs = [input]
+    list_csvs.extend(additional_csvs)
+
+    summary_info = defaultdict(lambda:defaultdict(str))
+
+    for csv_file in list_csvs:
+        with open(csv_file, 'r') as in_csv:
+            try:
+                reader = csv.DictReader(in_csv, delimiter=",", quotechar='\"', dialect = "unix")
+            except:
+                reader = csv.DictReader(in_csv, delimiter="\t", quotechar='\"', dialect = "unix")
+
+            if "sample" not in reader.fieldnames:
+                sys.exit("At a minimum, input file needs a sample column. Existing columns are %s" %reader.fieldnames)
+
+            for row in reader:
+                sample = row["sample"]
+                summary_info[sample].update(row)
+                if "scylla_report" not in row:
+                    summary_info[sample]["scylla_report"] = None
+    return summary_info
+
+def update_summary_info_column(summary_info, column, column_dict):
+    for sample in summary_info:
+        if sample in column_dict:
+            summary_info[sample][column] = column_dict[sample]
+        else:
+            summary_info[sample][column] = None
+
+def update_summary_info_columns(summary_info, new_dict):
+    for sample in summary_info:
+        summary_info[sample].update(new_dict[sample])
+
+
+def groups_from_csv(csv_file):
     groups = defaultdict(lambda: defaultdict(str))
     group_map = defaultdict()
 
@@ -24,14 +59,14 @@ def groups_from_csv(csv_file, summary_table=[], summary_table_headers=[]):
         except:
             reader = csv.DictReader(in_csv, delimiter="\t", quotechar='\"', dialect = "unix")
 
-        for col in ["sample_id", "filepath"]:
+        for col in ["sample", "filepath"]:
             if col not in reader.fieldnames:
-                sys.exit("At a minimum, input file needs a sample_id and filepath column. Existing columns are %s" %reader.fieldnames)
+                sys.exit("At a minimum, input file needs a sample and filepath column. Existing columns are %s" %reader.fieldnames)
 
         group = "case"
         barcode = None
         for row in reader:
-            id = row["sample_id"]
+            id = row["sample"]
             filepath = Path(row["filepath"])
 
             if "barcode" in row:
@@ -47,23 +82,21 @@ def groups_from_csv(csv_file, summary_table=[], summary_table_headers=[]):
             groups[group][id] = filepath
             groups["all"][id] = filepath
             group_map[id] = group
-            table_row = {"sample":id, "barcode":barcode, "group":group}
-            for header in summary_table_headers:
-                if header not in table_row:
-                    table_row[header] = None
-            summary_table.append(table_row)
+
     return groups, group_map
 
-def get_sample_counts(samples,sample_id_to_filepath,list_taxons=None,sample_counts=None, taxon_info=None, totals=None):
+def get_sample_counts(samples,sample_to_filepath,list_taxons=None,sample_counts=None, taxon_info=None, totals=None, count_info=None):
     if not sample_counts:
         sample_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
     if not taxon_info:
         taxon_info = defaultdict(lambda: defaultdict(int))
     if not totals:
         totals = {}
+    if not count_info:
+        count_info = defaultdict(lambda:{"human":0, "unclassified":0, "classified":0, "num_taxa":0})
 
-    for sample_id in samples:
-        file = sample_id_to_filepath[sample_id]
+    for sample in samples:
+        file = sample_to_filepath[sample]
         with file.open('r') as csv_in:
             for line in csv_in:
                 try:
@@ -73,22 +106,29 @@ def get_sample_counts(samples,sample_id_to_filepath,list_taxons=None,sample_coun
 
                 name = name.lstrip()
 
-                if name in ['Homo sapiens', 'unclassified', 'root']:
+                if name.startswith("Homo"):
+                    count_info[sample]["human"] += int(num_direct)
+                elif name == "unclassified":
+                    count_info[sample]["unclassified"] += int(num_direct)
+                elif name in ['root']:
                     continue
                 elif list_taxons and name not in list_taxons:
                     continue
 
-                if sample_id not in totals:
-                    totals[sample_id] = 0
-                totals[sample_id] += int(num_direct)
+                count_info[sample]["classified"] += int(num_direct)
+                count_info[sample]["num_taxa"] += 1
 
-                sample_counts[name]["direct"][sample_id] = int(num_direct)
-                sample_counts[name]["downstream"][sample_id] = int(num_clade_root)
+                if sample not in totals:
+                    totals[sample] = 0
+                totals[sample] += int(num_direct)
+
+                sample_counts[name]["direct"][sample] = int(num_direct)
+                sample_counts[name]["downstream"][sample] = int(num_clade_root)
                 taxon_info[name]["taxon_ncbi"] = ncbi
                 taxon_info[name]["simple_taxon_rank"] = rank[0]
                 taxon_info[name]["taxon_rank"] = rank
 
-    return sample_counts, taxon_info, totals
+    return sample_counts, taxon_info, totals, count_info
 
 def get_scores(sample_counts, taxon_info, groups):
     group_scores = {}
@@ -99,8 +139,8 @@ def get_scores(sample_counts, taxon_info, groups):
         negative_controls = []
 
     for group in groups:
-        if group in ["all", "control", "negative_control"]:
-            continue
+        #if group in ["all", "control", "negative_control"]:
+        #    continue
         group_scores[group] = {"direct": {}, "downstream":{}}
         cases = groups[group]
         if "control" in groups:
@@ -149,7 +189,7 @@ def make_data_dict(taxon_info, group_scores, sample_counts, group_map, totals, m
 
     for taxon in taxon_info:
         for sample in sample_counts[taxon]["direct"]:
-            if group_scores["direct"][taxon]["case_max_read_count"] < min_read_count and group_scores["direct"][taxon]["case_max_read_count"] < min_read_count:
+            if group_scores[group_map[sample]]["direct"][taxon]["case_max_read_count"] < min_read_count and group_scores[group_map[sample]]["direct"][taxon]["case_max_read_count"] < min_read_count:
                 continue
 
             new_dict = dict(taxon_info[taxon])
@@ -161,15 +201,15 @@ def make_data_dict(taxon_info, group_scores, sample_counts, group_map, totals, m
             new_dict["downstream_count"] = sample_counts[taxon]["downstream"][sample]
             new_dict["sample_total"] = totals[sample]
 
-            new_dict["direct"] = group_scores["direct"][taxon]
+            new_dict["direct"] = group_scores[group_map[sample]]["direct"][taxon]
             new_dict["direct"]["num_reads"] = sample_counts[taxon]["direct"][sample]
-            new_dict["downstream"] = group_scores["downstream"][taxon]
+            new_dict["downstream"] = group_scores[group_map[sample]]["downstream"][taxon]
             new_dict["downstream"]["num_reads"] = sample_counts[taxon]["downstream"][sample]
             data_list.append(new_dict)
 
     return data_list
 
-def make_output_report(report_to_generate, template, group, data_for_report= {"heatmap_data":"", "summary_table":""}):
+def make_output_report(report_to_generate, template, run, data_for_report= {"heatmap_data":"", "summary_table":""}):
     template_dir = os.path.abspath(os.path.dirname(__file__))
     mylookup = TemplateLookup(directories=[template_dir]) #absolute or relative works
     mytemplate = mylookup.get_template(template)
@@ -179,7 +219,7 @@ def make_output_report(report_to_generate, template, group, data_for_report= {"h
     ctx = Context(buf,
                     date = date.today(),
                     version = "__version__",
-                    group=group,
+                    run=run,
                     data_for_report = data_for_report)
 
     try:
@@ -200,34 +240,47 @@ def make_output_report(report_to_generate, template, group, data_for_report= {"h
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--input", help="CSV file with sample_id,group,filepath", required=True)
+    parser.add_argument("--input", help="CSV file with sample,group,filepath", required=True)
+    parser.add_argument("--data", help="Additional TSV/CSV files with sample column and data", required=False, nargs='*', default=[])
 
     parser.add_argument("--prefix", help="HTML output prefix ", default="pantheon")
+    parser.add_argument("--run", help="Run name", default="Pantheon")
 
     parser.add_argument("--template", help="HTML template for report", default="pantheon_report.mako.html")
     parser.add_argument("--min_reads", type=int, help="Threshold for min number reads", default=10)
 
     args = parser.parse_args()
 
-    data_for_report = {"heatmap_data":""}
-    data_for_report["summary_table_header"] = ["sample","barcode","group","status","warnings"]
-    data_for_report["summary_table"] = []
 
-    groups, group_map = groups_from_csv(args.input, data_for_report["summary_table"], data_for_report["summary_table_header"])
-    sample_counts,taxon_info,totals = get_sample_counts(list(groups["all"].keys()), groups["all"])
+
+    data_for_report = {}
+    #
+    #data_for_report["summary_table"] = []
+
+    groups, group_map = groups_from_csv(args.input)
+    sample_counts,taxon_info,totals,count_info = get_sample_counts(list(groups["all"].keys()), groups["all"])
+
+    summary_info = get_summary_info(args.input, args.data)
+    update_summary_info_column(summary_info, "group", group_map)
+    update_summary_info_columns(summary_info, count_info)
+
     group_scores = get_scores(sample_counts, taxon_info, groups)
+    data_list = make_data_dict(taxon_info, group_scores, sample_counts, group_map, totals, args.min_reads)
 
-    relevant_groups = [g for g in groups if g not in ["all", "control", "negative_control"]]
-    for group in relevant_groups:
-        outfile = args.prefix
-        if len(relevant_groups) > 1:
-            outfile += "_" + group
-        outfile += "_report.html"
+    outfile = args.prefix + "_report.html"
 
-        data_list = make_data_dict(taxon_info, group_scores[group], sample_counts, group_map, totals, args.min_reads)
-        data_for_report["heatmap_data"] = data_list
+    data_for_report = {}
+    data_for_report["heatmap_data"] = data_list
+    data_for_report["summary_table"] = [summary_info[sample] for sample in summary_info]
 
-        make_output_report(outfile, args.template, group, data_for_report)
+    out_columns = ["sample","barcode","group"]
+    final_columns = ["status","warnings"]
+    additional_columns = [c for c in data_for_report["summary_table"][0].keys() if c not in out_columns and c not in final_columns and not c.endswith("path") and not c.endswith("report")]
+    out_columns.extend(additional_columns)
+    out_columns.extend(final_columns)
+    data_for_report["summary_table_header"] = out_columns
+
+    make_output_report(outfile, args.template, args.run, data_for_report)
 
 
 if __name__ == "__main__":
