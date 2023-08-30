@@ -27,14 +27,14 @@ def get_summary_info(input, additional_csvs):
             except:
                 reader = csv.DictReader(in_csv, delimiter="\t", quotechar='\"', dialect = "unix")
 
-            if "sample" not in reader.fieldnames:
-                sys.exit("At a minimum, input file needs a sample column. Existing columns are %s" %reader.fieldnames)
+            if "barcode" not in reader.fieldnames:
+                sys.exit("At a minimum, input file needs a barcode column. Existing columns are %s" %reader.fieldnames)
 
             for row in reader:
-                sample = row["sample"]
+                sample = row["barcode"]
                 summary_info[sample].update(row)
-                if "scylla_report" not in row:
-                    summary_info[sample]["scylla_report"] = None
+                if "barcode_report" not in row and "barcode_report" not in summary_info[sample]:
+                    summary_info[sample]["barcode_report"] = None
     return summary_info
 
 def update_summary_info_column(summary_info, column, column_dict):

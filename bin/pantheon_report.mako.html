@@ -34,8 +34,8 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <% colorCodes = ["#e68781","#476970","#f5eece"] %>
-    <% themeColor = "#e68781" %>
+    <% colorCodes = ["#2596be","#0662ad","#272727"] %>
+    <% themeColor = "#2596be" %>
     <style>
       body {
         padding-top: 50px;
@@ -552,7 +552,7 @@
       % for col in data_for_report["summary_table_header"]:
 
       %if col=="sample":
-      <% this_report = row["scylla_report"] %>
+      <% this_report = row["barcode_report"] %>
       <% this_barcode = row["barcode"] %>
       <td><a href="${this_report}" target="_blank" style="color:${themeColor}"><strong>${row[col]}</strong></a></td>
       %else:
