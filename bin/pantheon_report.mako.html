@@ -552,7 +552,7 @@
       % for col in data_for_report["summary_table_header"]:
 
       %if col=="sample":
-      <% this_report = row["barcode_report"] %>
+      <% this_report = row["sample_report"] %>
       <% this_barcode = row["barcode"] %>
       <td><a href="${this_report}" target="_blank" style="color:${themeColor}"><strong>${row[col]}</strong></a></td>
       %else:

@@ -14,27 +14,59 @@ import os
 from Bio import SeqIO
 import sys
 
-def get_summary_info(input, additional_csvs):
-    list_csvs = [input]
-    list_csvs.extend(additional_csvs)
+def get_summary_info(list_csvs):
 
     summary_info = defaultdict(lambda:defaultdict(str))
 
+    index = None
+    keys = set()
     for csv_file in list_csvs:
+
         with open(csv_file, 'r') as in_csv:
             try:
                 reader = csv.DictReader(in_csv, delimiter=",", quotechar='\"', dialect = "unix")
             except:
                 reader = csv.DictReader(in_csv, delimiter="\t", quotechar='\"', dialect = "unix")
 
-            if "barcode" not in reader.fieldnames:
-                sys.exit("At a minimum, input file needs a barcode column. Existing columns are %s" %reader.fieldnames)
+            if not index:
+                for key in ["barcode","sample","id"]:
+                    if key in reader.fieldnames:
+                        index = key
+                        break
+
+            if not index or index not in reader.fieldnames:
+                sys.exit("At a minimum, input file needs a 'barcode', 'sample' or 'id' column. Existing columns in %s are %s" %(csv_file, reader.fieldnames))
 
             for row in reader:
-                sample = row["barcode"]
+                sample = row[index]
                 summary_info[sample].update(row)
-                if "barcode_report" not in row and "barcode_report" not in summary_info[sample]:
-                    summary_info[sample]["barcode_report"] = None
+                keys.update(row.keys())
+                if "sample_report" not in row and "sample_report" not in summary_info[sample]:
+                    summary_info[sample]["sample_report"] = None
+
+    file_keys = [key for key in keys if key.endswith("path") or key.endswith("report") or key.endswith("file")]
+
+    filepath_key = None
+    for key in ["filepath", "kraken_file"]:
+        if key in file_keys:
+            filepath_key = key
+            break
+
+    if not filepath_key:
+         sys.exit("One of the input files needs a 'filepath' column giving the path to the kraken report. Near match columns found are %s" %file_keys)
+
+    incomplete = []
+    for sample in summary_info:
+        for key in file_keys:
+            if key in summary_info[sample]:
+                summary_info[sample][key] = Path(summary_info[sample][key])
+        summary_info[sample]["filepath"] = summary_info[sample][filepath_key]
+        if "group" in keys and "group" not in summary_info[sample]:
+            print("No group found for sample %s: removing from output" %sample)
+            incomplete.append(sample)
+    for sample in incomplete:
+        del summary_info[sample]
+
     return summary_info
 
 def update_summary_info_column(summary_info, column, column_dict):
@@ -49,39 +81,26 @@ def update_summary_info_columns(summary_info, new_dict):
         summary_info[sample].update(new_dict[sample])
 
 
-def groups_from_csv(csv_file):
+def groups_from_info(summary_info):
     groups = defaultdict(lambda: defaultdict(str))
     group_map = defaultdict()
 
-    with open(csv_file, 'r') as in_csv:
-        try:
-            reader = csv.DictReader(in_csv, delimiter=",", quotechar='\"', dialect = "unix")
-        except:
-            reader = csv.DictReader(in_csv, delimiter="\t", quotechar='\"', dialect = "unix")
 
-        for col in ["sample", "filepath"]:
-            if col not in reader.fieldnames:
-                sys.exit("At a minimum, input file needs a sample and filepath column. Existing columns are %s" %reader.fieldnames)
-
+    for sample in summary_info:
         group = "case"
-        barcode = None
-        for row in reader:
-            id = row["sample"]
-            filepath = Path(row["filepath"])
+        if "group" in summary_info[sample].keys():
+            group = summary_info[sample]["group"]
 
-            if "barcode" in row:
-                barcode = row["barcode"]
-            if "group" in row:
-                group = row["group"]
+        if group.lower() in ["negative control", "negative controls", "negative_control", "negative_controls", "nc", "negative"]:
+            group = "negative_control"
+        elif group.lower() in ["control", "controls"]:
+            group = "control"
 
-            if group.lower() in ["negative control", "negative controls", "negative_control", "negative_controls", "nc", "negative"]:
-                group = "negative_control"
-            elif group.lower() in ["control", "controls"]:
-                group = "control"
+        filepath = summary_info[sample]["filepath"]
 
-            groups[group][id] = filepath
-            groups["all"][id] = filepath
-            group_map[id] = group
+        groups[group][sample] = filepath
+        groups["all"][sample] = filepath
+        group_map[sample] = group
 
     return groups, group_map
 
@@ -98,6 +117,7 @@ def get_sample_counts(samples,sample_to_filepath,list_taxons=None,sample_counts=
     for sample in samples:
         file = sample_to_filepath[sample]
         with file.open('r') as csv_in:
+            domain = None
             for line in csv_in:
                 if line.startswith("%"):
                     continue
@@ -110,8 +130,10 @@ def get_sample_counts(samples,sample_to_filepath,list_taxons=None,sample_counts=
 
                 if name.startswith("Homo"):
                     count_info[sample]["human"] += int(num_direct)
+                    continue
                 elif name == "unclassified":
                     count_info[sample]["unclassified"] += int(num_direct)
+                    continue
                 elif name in ['root']:
                     continue
                 elif list_taxons and name not in list_taxons:
@@ -129,6 +151,9 @@ def get_sample_counts(samples,sample_to_filepath,list_taxons=None,sample_counts=
                 taxon_info[name]["taxon_ncbi"] = ncbi
                 taxon_info[name]["simple_taxon_rank"] = rank[0]
                 taxon_info[name]["taxon_rank"] = rank
+                if rank == "D":
+                    domain = name
+                taxon_info[name]["domain"] = domain
 
     return sample_counts, taxon_info, totals, count_info
 
@@ -242,14 +267,13 @@ def make_output_report(report_to_generate, template, run, data_for_report= {"hea
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--input", help="CSV file with sample,group,filepath", required=True)
-    parser.add_argument("--data", help="Additional TSV/CSV files with sample column and data", required=False, nargs='*', default=[])
+    parser.add_argument("-i","--input", help="One or more TSV/CSV files containing a 'barcode'/'sample' column. Must include a 'filepath' column specifying the kraken report and ideally also 'group' and 'sample_report' columns", required=True, nargs='+')
 
-    parser.add_argument("--prefix", help="HTML output prefix ", default="pantheon")
-    parser.add_argument("--run", help="Run name", default="Pantheon")
+    parser.add_argument("-p","--prefix", help="HTML output prefix ", default="pantheon")
+    parser.add_argument("-r","--run", help="Run name", default="Pantheon")
 
-    parser.add_argument("--template", help="HTML template for report", default="pantheon_report.mako.html")
-    parser.add_argument("--min_reads", type=int, help="Threshold for min number reads", default=10)
+    parser.add_argument("-t","--template", help="HTML template for report", default="pantheon_report.mako.html")
+    parser.add_argument("-m","--min_reads", type=int, help="Threshold for min number reads", default=10)
 
     args = parser.parse_args()
 
@@ -259,10 +283,11 @@ def main():
     #
     #data_for_report["summary_table"] = []
 
-    groups, group_map = groups_from_csv(args.input)
+    summary_info = get_summary_info(args.input)
+
+    groups, group_map = groups_from_info(summary_info)
     sample_counts,taxon_info,totals,count_info = get_sample_counts(list(groups["all"].keys()), groups["all"])
 
-    summary_info = get_summary_info(args.input, args.data)
     update_summary_info_column(summary_info, "group", group_map)
     update_summary_info_columns(summary_info, count_info)
 

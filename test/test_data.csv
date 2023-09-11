@@ -1,4 +1,4 @@
-sample,group,barcode,filepath,barcode_report
+sample,group,barcode,filepath,sample_report
 case_2,case,BC01,case_2_report.txt,/Users/rmcolq/Work/git/scylla/scylla_report.html
 case_3,case,BC02,case_3_report.txt,
 case_4,case,BC05,case_4_report.txt,
