@@ -546,6 +546,9 @@ def main():
         parent, children = infer_hierarchy(report_file)
 
     # get taxids to extract
+    if len(args.taxid) == 1 and "," in args.taxid[0]:
+        args.taxid = args.taxid[0].split(",")
+
     report_entries = load_report_file(args.report_file, args.max_human)
     lists_to_extract = get_taxon_id_lists(
         report_entries,

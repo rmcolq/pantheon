@@ -63,9 +63,13 @@ process extract_reads {
         tuple val(unique_id), path(fastq), path(kraken_assignments), path(bracken_report)
         path taxonomy_dir
     output:
-        path "reads.*.f*.gz", emit: reads
-        path "reads_summary.json", emit: summary
+        tuple val(unique_id), path("reads.*.f*.gz"), emit: reads
+        tuple val(unique_id), path("reads_summary.json"), emit: summary
     script:
+        if ( params.taxon_names )
+            taxid = "--taxid \"${params.taxon_names}\""
+        else
+            taxid = ""
         """
         extract_kraken_reads.py \
             -s ${fastq} \
@@ -75,9 +79,9 @@ process extract_reads {
             -p reads \
             --include_children \
             --max_human ${params.max_human_reads_before_rejection} \
-            --min_count_descendants ${params.assembly_min_reads} \
-            --rank ${params.assembly_rank} \
-            --min_percent ${params.assembly_min_percent}
+            --min_count_descendants ${params.extract_min_reads} \
+            --rank ${params.extract_rank} \
+            --min_percent ${params.extract_min_percent} ${taxid}
 
         PATTERN=(reads.*.f*)
         if [ -f \${PATTERN[0]} ]; then
@@ -86,7 +90,72 @@ process extract_reads {
                 bgzip --threads $task.cpus \$f
               done
         else
+            echo "Found no output files - maybe there weren't any for this sample"
             exit 2
         fi
         """
 }
+
+process taxid_from_name {
+    label 'process_low'
+
+    container "${params.wf.container}@${params.wf.container_sha}"
+
+    input:
+        val taxon_name
+    output:
+        tuple val(taxon_name), stdout
+    """
+    esearch -db taxonomy -query "${taxon_name}" | efetch -format xml  | xtract -pattern Taxon -element TaxId | tr -d '\n'
+    """
+}
+
+process download_references_by_name {
+
+    label 'process_low'
+
+    publishDir path: "${params.outdir}/${unique_id}/references", mode: 'copy', pattern: 'references_*.fa'
+
+    conda 'bioconda::biopython=1.78 bioconda::tabix=1.11'
+    container "${params.wf.container}@${params.wf.container_sha}"
+
+    input:
+        val unique_id
+        val taxon_name
+    output:
+        tuple val(taxon_name), path("references_${taxon_name}.fa"), path(taxa_refs.tsv), emit: refs
+    script:
+        """
+        esearch -db genome -query "${taxon_name}"[orgn] | \
+            elink -target nuccore | efetch -format docsum | \
+            xtract -pattern DocumentSummary -if SourceDb -contains refseq -contains NC_ -element Caption,Title,SourceDb | \
+            > taxa_refs.tsv
+            cat taxa_refs.tsv | efetch -db nuccore -format fasta > references_${taxon_name}.fa
+        """
+}
+
+process download_references_by_taxid {
+
+    label 'process_low'
+
+    publishDir path: "${params.outdir}/${unique_id}/references", mode: 'copy', pattern: 'references_*.fa'
+
+    conda 'bioconda::biopython=1.78 bioconda::tabix=1.11'
+    container "${params.wf.container}@${params.wf.container_sha}"
+
+    input:
+        val unique_id
+        val taxon_id
+    output:
+        tuple val(taxon_id), path("references_${taxon_id}.fa"), path(taxa_refs.tsv), emit: refs
+    script:
+        """
+        esearch -db genome -query "txid${taxon_id}[Organism:exp]" | \
+            elink -target nuccore | efetch -format docsum | \
+            xtract -pattern DocumentSummary -if SourceDb -contains refseq -element Caption,Title,SourceDb | \
+            > taxa_refs.tsv
+            cat taxa_refs.tsv | efetch -db nuccore -format fasta > references_${taxon_id}.fa
+        """
+}
+
+

@@ -10,4 +10,6 @@ dependencies:
   - pip
   - biopython
   - entrez-direct
+  - pip:
+      - mappy
 

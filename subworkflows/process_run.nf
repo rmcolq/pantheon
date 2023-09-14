@@ -1,5 +1,6 @@
 // workflow to extract reads and create assemblies from a wf-metagenomic or scylla run
-include { move_or_compress; unpack_taxonomy; extract_reads } from '../modules/preprocess'
+include { move_or_compress; unpack_taxonomy; extract_reads; taxid_from_name; download_references_by_taxid } from '../modules/preprocess'
+include {  } from '../modules/assemble_taxa'
 
 EXTENSIONS = ["fastq", "fastq.gz", "fq", "fq.gz"]
 
@@ -40,6 +41,16 @@ workflow process_run {
         barcode_input = Channel.fromPath("${run_dir}/*", type: "dir", checkIfExists:true, maxDepth:1).map { [it.baseName, get_fq_files_in_dir(it)]}
         ch_input = move_or_compress(barcode_input)
 
+        if ( params.taxon_names ) {
+            taxa_list = params.taxon_names?.split(',') as List
+            ch_taxa = Channel.from(taxa_list)
+            taxid_from_name(ch_taxa)
+            taxid_from_name.out.map{ it -> it[1] }.set{ taxid_ch }
+        } else {
+            exit 1, "Must provide a list of taxon names with --taxon_names. These should be a comma separated list, and each taxon item should have quotes to allow effective parsing of spaces"
+        }
+        ch_references = download_references_by_taxid(unique_id, taxid_ch)
+
         if ( params.wf_dir ) {
             wf_dir = file("${params.wf_dir}", type: "dir", checkIfExists:true)
             ch_bracken = Channel.fromPath("${wf_dir}/output/bracken/*.kreport_bracken_species.txt", type: "file", checkIfExists:true).map { [it.simpleName, it]}
@@ -58,6 +69,7 @@ workflow process_run {
                 .set{ ch_barcode }
 
             extract_reads(ch_barcode, taxonomy)
+            extract_reads.out.reads.transpose().view()
         }
 
 
