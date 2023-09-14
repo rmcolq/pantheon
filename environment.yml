@@ -5,11 +5,12 @@ channels:
   - defaults
 dependencies:
   - python<=3.10
+  - biopython
   - pysam
   - nextflow
   - pip
   - biopython
   - entrez-direct
-  - pip:
-      - mappy
+  - mappy
+  - tabix
 

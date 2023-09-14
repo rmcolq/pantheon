@@ -274,22 +274,23 @@ def extract_taxa(
 
     keys = {}
     for taxon in lists_to_extract:
+        out_prefix = "_".join([prefix, taxon])
         for key in lists_to_extract[taxon]:
             if key not in keys:
                 keys[key] = []
             keys[key].append(taxon)
         if reads2:
             outfile_handles[taxon] = {
-                1: open("%s.%s_1.%s" % (prefix, taxon, filetype), "w"),
-                2: open("%s.%s_2.%s" % (prefix, taxon, filetype), "w"),
+                1: open("%s_1.%s" % (out_prefix, filetype), "w"),
+                2: open("%s_2.%s" % (out_prefix, filetype), "w"),
             }
             print(
-                "opening %s.%s_1.%s and %s.%s_2.%s"
-                % (prefix, taxon, filetype, prefix, taxon, filetype)
+                "opening %s_1.%s and %s_2.%s"
+                % (out_prefix, filetype, out_prefix, filetype)
             )
         else:
-            outfile_handles[taxon] = open("%s.%s.%s" % (prefix, taxon, filetype), "w")
-            print("opening %s.%s.%s" % (prefix, taxon, filetype))
+            outfile_handles[taxon] = open("%s.%s" % (out_prefix, filetype), "w")
+            print("opening %s.%s" % (out_prefix, filetype))
         out_counts[taxon] = 0
         quals[taxon] = []
         lens[taxon] = []
@@ -352,6 +353,7 @@ def extract_taxa(
 
     summary = []
     for taxon in lists_to_extract:
+        out_prefix = "_".join([prefix, taxon])
         if reads2:
             summary.append(
                 {
@@ -359,8 +361,8 @@ def extract_taxa(
                     "taxon": taxon,
                     "tax_level": report_entries[taxon]["rank"],
                     "filenames": [
-                        "%s.%s_1.%s" % (prefix, taxon, filetype),
-                        "%s.%s_2.%s" % (prefix, taxon, filetype),
+                        "%s_1.%s" % (out_prefix, filetype),
+                        "%s_2.%s" % (out_prefix, filetype),
                     ],
                     "qc_metrics": {
                         "num_reads": out_counts[taxon],
@@ -376,7 +378,7 @@ def extract_taxa(
                     "taxon": taxon,
                     "tax_level": report_entries[taxon]["rank"],
                     "filenames": [
-                        "%s.%s.%s" % (prefix, taxon, filetype),
+                        "%s.%s" % (out_prefix, filetype),
                     ],
                     "qc_metrics": {
                         "num_reads": out_counts[taxon],
@@ -385,7 +387,8 @@ def extract_taxa(
                     },
                 }
             )
-    with open("%s_summary.json" % prefix, "w") as f:
+    out_summary = "_".join([prefix, "summary.json"])
+    with open(out_summary, "w") as f:
         print(summary)
         json.dump(summary, f)
     return out_counts
@@ -433,8 +436,7 @@ def main():
         "-p",
         "--prefix",
         dest="prefix",
-        required=True,
-        default="taxid",
+        default="",
         help="Prefix for output files",
     )
 

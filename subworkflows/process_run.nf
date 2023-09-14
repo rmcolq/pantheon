@@ -1,6 +1,6 @@
 // workflow to extract reads and create assemblies from a wf-metagenomic or scylla run
 include { move_or_compress; unpack_taxonomy; extract_reads; taxid_from_name; download_references_by_taxid } from '../modules/preprocess'
-include {  } from '../modules/assemble_taxa'
+include { filter_references; medaka_consensus } from '../modules/assemble_taxa'
 
 EXTENSIONS = ["fastq", "fastq.gz", "fq", "fq.gz"]
 
@@ -49,7 +49,7 @@ workflow process_run {
         } else {
             exit 1, "Must provide a list of taxon names with --taxon_names. These should be a comma separated list, and each taxon item should have quotes to allow effective parsing of spaces"
         }
-        ch_references = download_references_by_taxid(unique_id, taxid_ch)
+        ch_references = download_references_by_taxid(taxid_ch)
 
         if ( params.wf_dir ) {
             wf_dir = file("${params.wf_dir}", type: "dir", checkIfExists:true)
@@ -69,12 +69,12 @@ workflow process_run {
                 .set{ ch_barcode }
 
             extract_reads(ch_barcode, taxonomy)
-            extract_reads.out.reads.transpose().view()
+            extract_reads.out.reads.transpose()
+              .map{ it -> [it[1].simpleName.replace("reads_",""), it[0], it[1]] }
+              .set{ ch_reads }
+
+            ch_assembly = ch_reads.combine(ch_references, by: 0)
+            filter_references(ch_assembly)
+            medaka_consensus(filter_references.out)
         }
-
-
-
-        //process_barcode(ch_input.barcode_id, ch_input.barcode_fq, taxonomy)
-        //
-
 }

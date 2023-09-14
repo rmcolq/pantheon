@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import mappy as mp
 import argparse
 from Bio import SeqIO
@@ -28,13 +30,13 @@ def parse_name(s, strain):
     return s
 
 def combine_references(ref_dict, refs, sep):
-    with open("combined_references.fa", "w") as f:
+    with open("intermediate_references.fa", "w") as f:
         for key in ref_dict:
             ref_seqs = [str(refs[acc].seq) for acc in ref_dict[key] if acc]
-            f.write(">%s\n%s\n" %(key.replace(" ","_"), "".join(ref_seqs)))
+            f.write(">%s\n%s\n" %(key.replace(" ","_"), sep.join(ref_seqs)))
 
 def collect_refs(ref_file, summary_file, sep):
-    ref_dict = {}
+    ref_dict = defaultdict(list)
     reserve = defaultdict(list)
     refs = SeqIO.index(ref_file, 'fasta')
     accessions = parse_accessions(summary_file)
@@ -52,55 +54,37 @@ def collect_refs(ref_file, summary_file, sep):
         if not accession_in_list(acc, accessions):
             continue
 
-        if "segment" in d:
-            try:
-                seg_num = d.split(" segment ")[1]
-                seg_num = int(seg_num.split()[0].split(',')[0])
-            except:
-                print("Can't parse the segment number from %s so ignoring" %refs[acc].description)
-                continue
-
-            if name not in ref_dict:
-                ref_dict[name] = []
-            if type(ref_dict[name]) == str:
-                reserve[name].append(ref_dict[name])
-                ref_dict[name] = []
-            if len(ref_dict[name]) < seg_num:
-                ref_dict[name] = ref_dict[name] + [None]*(seg_num - len(ref_dict[name]))
-
-            ref_dict[name][seg_num-1] = acc
-
-        elif name in ref_dict:
-            reserve[name].append(acc)
-        else:
-            ref_dict[name] = acc
-
-    for name in reserve:
-        if type(ref_dict[name]) == str:
-            ref_dict[name] = [ref_dict[name]]
-        for i in range(len(ref_dict[name])):
-            if not ref_dict[name][i] and len(reserve[name]) > 0:
-                ref_dict[name][i] = reserve[name].pop()
-        try:
-            ref_dict[name].extend(reserve[name])
-        except:
-            print("ERROR", name, ref_dict[name], reserve[name])
+        ref_dict[name].append(acc)
 
     for name in ref_dict:
-        print(name, ref_dict[name])
+        ref_dict[name].sort(key=lambda s: refs[s].description, reverse=True)
+        ref_dict[name].sort(key=lambda s: len(refs[s]), reverse=True)
+
     combine_references(ref_dict, refs, sep)
 
 
 def map_to_refs(query):
-    a = mp.Aligner("combined_references.fa")  # load or build index
+    counts = defaultdict(int)
+    a = mp.Aligner("intermediate_references.fa")  # load or build index
     if not a:
         raise Exception("ERROR: failed to load/build index")
 
     for name, seq, qual in mp.fastx_read(query): # read a fasta/q sequence
         for hit in a.map(seq): # traverse alignments
-            print("{}\t{}\t{}\t{}\t{}".format(name, hit.ctg, hit.r_st, hit.r_en, hit.cigar_str))
+            counts[hit.ctg] += 1
+            #print("{}\t{}\t{}\t{}\t{}".format(name, hit.ctg, hit.r_st, hit.r_en, hit.cigar_str))
             break
+    return counts
 
+def output_references(counts, min_count):
+    refs = SeqIO.index("intermediate_references.fa", 'fasta')
+    with open("filtered_references.fa", "w") as f:
+        for ref in counts:
+            print("Reference %s has %i mapped reads" %(ref, counts[ref]))
+            if counts[ref] > min_count:
+                SeqIO.write(refs[ref], f, 'fasta')
+            else:
+                print("Excluded: this is smaller than min_count %i" %min_count)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -111,11 +95,12 @@ def main():
     parser.add_argument("-q","--query", help="Read FASTQ.GZ", required=True)
 
     parser.add_argument("--segment_sep", help="String to use as seperator when concatenating segments", default="NNNNNNNNNNNNNNNNNNNNNNNNNNNNNN")
-
+    parser.add_argument("--min_count", help="Minimum number of mapped reads to continue with reference", default=50, type=int)
     args = parser.parse_args()
 
     collect_refs(args.reference, args.summary, args.segment_sep)
-    map_to_refs(args.query)
+    counts = map_to_refs(args.query)
+    output_references(counts, args.min_count)
 
 if __name__ == "__main__":
     main()

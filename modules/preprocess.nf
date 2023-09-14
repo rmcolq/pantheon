@@ -3,7 +3,7 @@ process move_or_compress {
     label "process_low"
 
     conda "bioconda::tabix==v1.11"
-    container "biocontainers/tabix:1.11--hdfd78af_0"
+    container "quay.io/biocontainers/tabix:1.11--hdfd78af_0"
     cpus 1
 
     input:
@@ -63,7 +63,7 @@ process extract_reads {
         tuple val(unique_id), path(fastq), path(kraken_assignments), path(bracken_report)
         path taxonomy_dir
     output:
-        tuple val(unique_id), path("reads.*.f*.gz"), emit: reads
+        tuple val(unique_id), path("reads_*.f*.gz"), emit: reads
         tuple val(unique_id), path("reads_summary.json"), emit: summary
     script:
         if ( params.taxon_names )
@@ -83,9 +83,9 @@ process extract_reads {
             --rank ${params.extract_rank} \
             --min_percent ${params.extract_min_percent} ${taxid}
 
-        PATTERN=(reads.*.f*)
+        PATTERN=(reads_*.f*)
         if [ -f \${PATTERN[0]} ]; then
-            for f in \$(ls reads.*.f*)
+            for f in \$(ls reads_*.f*)
               do
                 bgzip --threads $task.cpus \$f
               done
@@ -99,6 +99,7 @@ process extract_reads {
 process taxid_from_name {
     label 'process_low'
 
+    conda 'bioconda::entrez-direct'
     container "${params.wf.container}@${params.wf.container_sha}"
 
     input:
@@ -116,21 +117,21 @@ process download_references_by_name {
 
     publishDir path: "${params.outdir}/${unique_id}/references", mode: 'copy', pattern: 'references_*.fa'
 
-    conda 'bioconda::biopython=1.78 bioconda::tabix=1.11'
+    conda 'bioconda::entrez-direct'
     container "${params.wf.container}@${params.wf.container_sha}"
 
     input:
         val unique_id
         val taxon_name
     output:
-        tuple val(taxon_name), path("references_${taxon_name}.fa"), path(taxa_refs.tsv), emit: refs
+        tuple val(taxon_name), path("references_${taxon_name}.fa"), path("taxa_refs_${taxon_name}.tsv"), emit: refs
     script:
         """
         esearch -db genome -query "${taxon_name}"[orgn] | \
             elink -target nuccore | efetch -format docsum | \
-            xtract -pattern DocumentSummary -if SourceDb -contains refseq -contains NC_ -element Caption,Title,SourceDb | \
-            > taxa_refs.tsv
-            cat taxa_refs.tsv | efetch -db nuccore -format fasta > references_${taxon_name}.fa
+            xtract -pattern DocumentSummary -if SourceDb -contains refseq -contains NC_ -element Caption,Title,SourceDb \
+            > taxa_refs_${taxon_name}.tsv
+            cat taxa_refs_${taxon_name}.tsv | efetch -db nuccore -format fasta > references_${taxon_name}.fa
         """
 }
 
@@ -138,23 +139,22 @@ process download_references_by_taxid {
 
     label 'process_low'
 
-    publishDir path: "${params.outdir}/${unique_id}/references", mode: 'copy', pattern: 'references_*.fa'
+    publishDir path: "${params.outdir}/references", mode: 'copy', pattern: 'references_*.fa'
 
-    conda 'bioconda::biopython=1.78 bioconda::tabix=1.11'
+    conda 'bioconda::entrez-direct'
     container "${params.wf.container}@${params.wf.container_sha}"
 
     input:
-        val unique_id
         val taxon_id
     output:
-        tuple val(taxon_id), path("references_${taxon_id}.fa"), path(taxa_refs.tsv), emit: refs
+        tuple val(taxon_id), path("references_${taxon_id}.fa"), path("taxa_refs_${taxon_id}.tsv"), emit: refs
     script:
         """
         esearch -db genome -query "txid${taxon_id}[Organism:exp]" | \
             elink -target nuccore | efetch -format docsum | \
-            xtract -pattern DocumentSummary -if SourceDb -contains refseq -element Caption,Title,SourceDb | \
-            > taxa_refs.tsv
-            cat taxa_refs.tsv | efetch -db nuccore -format fasta > references_${taxon_id}.fa
+            xtract -pattern DocumentSummary -if SourceDb -contains refseq -element Caption,Title,SourceDb \
+            > taxa_refs_${taxon_id}.tsv
+            cat taxa_refs_${taxon_id}.tsv | efetch -db nuccore -format fasta > references_${taxon_id}.fa
         """
 }
 
