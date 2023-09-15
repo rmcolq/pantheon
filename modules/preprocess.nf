@@ -114,6 +114,7 @@ process taxid_from_name {
 process download_references_by_name {
 
     label 'process_low'
+    maxForks 1
 
     publishDir path: "${params.outdir}/${unique_id}/references", mode: 'copy', pattern: 'references_*.fa'
 
@@ -127,17 +128,22 @@ process download_references_by_name {
         tuple val(taxon_name), path("references_${taxon_name}.fa"), path("taxa_refs_${taxon_name}.tsv"), emit: refs
     script:
         """
+        export NCBI_API_KEY=${params.ncbi_api_key}
+        export EMAIL=${params.email}
         esearch -db genome -query "${taxon_name}"[orgn] | \
             elink -target nuccore | efetch -format docsum | \
             xtract -pattern DocumentSummary -if SourceDb -contains refseq -contains NC_ -element Caption,Title,SourceDb \
             > taxa_refs_${taxon_name}.tsv
-            cat taxa_refs_${taxon_name}.tsv | efetch -db nuccore -format fasta > references_${taxon_name}.fa
+        cat taxa_refs_${taxon_name}.tsv | efetch -db nuccore -format fasta > references_${taxon_name}.fa
         """
 }
 
 process download_references_by_taxid {
 
     label 'process_low'
+    maxForks 1
+    errorStrategy { sleep(Math.pow(2, task.attempt) * 200 as long); return 'retry' }
+    maxRetries 2
 
     publishDir path: "${params.outdir}/references", mode: 'copy', pattern: 'references_*.fa'
 
@@ -150,11 +156,13 @@ process download_references_by_taxid {
         tuple val(taxon_id), path("references_${taxon_id}.fa"), path("taxa_refs_${taxon_id}.tsv"), emit: refs
     script:
         """
+        export NCBI_API_KEY=${params.ncbi_api_key}
+        export EMAIL=${params.email}
         esearch -db genome -query "txid${taxon_id}[Organism:exp]" | \
             elink -target nuccore | efetch -format docsum | \
             xtract -pattern DocumentSummary -if SourceDb -contains refseq -element Caption,Title,SourceDb \
             > taxa_refs_${taxon_id}.tsv
-            cat taxa_refs_${taxon_id}.tsv | efetch -db nuccore -format fasta > references_${taxon_id}.fa
+        cat taxa_refs_${taxon_id}.tsv | efetch -db nuccore -format fasta > references_${taxon_id}.fa
         """
 }
 

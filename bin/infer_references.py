@@ -37,16 +37,17 @@ def combine_references(ref_dict, refs, sep):
 
 def collect_refs(ref_file, summary_file, sep):
     ref_dict = defaultdict(list)
+    ref_index = {}
     reserve = defaultdict(list)
-    refs = SeqIO.index(ref_file, 'fasta')
+    refs = SeqIO.parse(ref_file, 'fasta')
     accessions = parse_accessions(summary_file)
 
-    for acc in refs:
+    for record in refs:
         strain = None
-        if "strain" in refs[acc].description:
-            strain = refs[acc].description.split("strain ")[1]
+        if "strain" in record.description:
+            strain = record.description.split("strain ")[1]
             strain = "(%s)" %strain
-        d = refs[acc].description.split(",")[0]
+        d = record.description.split(",")[0]
         prefix = d.split(" segment ")[0]
         acc = prefix.split()[0]
         name = parse_name(prefix, strain)
@@ -54,13 +55,14 @@ def collect_refs(ref_file, summary_file, sep):
         if not accession_in_list(acc, accessions):
             continue
 
+        ref_index[acc] = record
         ref_dict[name].append(acc)
 
     for name in ref_dict:
-        ref_dict[name].sort(key=lambda s: refs[s].description, reverse=True)
-        ref_dict[name].sort(key=lambda s: len(refs[s]), reverse=True)
+        ref_dict[name].sort(key=lambda s: ref_index[s].description, reverse=True)
+        ref_dict[name].sort(key=lambda s: len(ref_index[s]), reverse=True)
 
-    combine_references(ref_dict, refs, sep)
+    combine_references(ref_dict, ref_index, sep)
 
 
 def map_to_refs(query):

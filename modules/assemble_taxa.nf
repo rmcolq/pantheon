@@ -19,7 +19,7 @@ process filter_references {
           --min_count ${params.reference_min_count} \
           --segment_sep ${params.reference_segment_sep}
 
-        if [ -s "filtered_references.fa" ]
+        if [ ! -s "filtered_references.fa" ]
         then
             echo "No references for this taxid had sufficient reads to continue"
             exit 2
@@ -31,7 +31,7 @@ process medaka_consensus {
 
     label 'process_low'
 
-    publishDir path: "${params.outdir}/${barcode_id}/assemblies", mode: 'copy'
+    publishDir path: "${params.outdir}/${barcode_id}/assemblies", mode: 'copy', pattern: 'assembly_*.fa'
 
     conda 'bioconda::medaka=1.8.0'
     container "quay.io/biocontainers/medaka@sha256:777dc707f163a3b56b5e18f066cfac3c3fc96ef029332e7c0bdd1db81ada412f"
@@ -39,7 +39,7 @@ process medaka_consensus {
     input:
         tuple val(taxon_id), val(barcode_id), path(reads), path(reference)
     output:
-        tuple val(taxon_id), val(barcode_id), path(reads),  path("filtered_references.fa")
+        tuple val(taxon_id), val(barcode_id), path(reads),  path("assembly_${taxon_id}.fa")
     script:
         """
         medaka_haploid_variant -i ${reads} \

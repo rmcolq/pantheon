@@ -10,7 +10,6 @@ dependencies:
   - nextflow
   - pip
   - biopython
-  - entrez-direct
   - mappy
   - tabix
 
