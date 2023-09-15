@@ -81,7 +81,7 @@
         },
         "reference_min_count": {
           "type": "integer",
-          "default": 50,
+          "default": 10,
           "title": "Min read count for assembly",
           "description": "Minimum read count of a taxon for reference guided assembly to be attempted.",
           "help_text": "Minimum read count of a taxon for reference guided assembly to be attempted. Note that if this is too low, the result output will be unreliable."
