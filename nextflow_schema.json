@@ -36,13 +36,8 @@
       "allOf": [
         {
           "required": [
-            "run_dir"
-          ],
-          "required": [
+            "run_dir",
             "wf_dir"
-          ],
-          "required": [
-            "run_dir"
           ]
         }
       ]
