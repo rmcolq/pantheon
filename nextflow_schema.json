@@ -40,6 +40,9 @@
           ],
           "required": [
             "wf_dir"
+          ],
+          "required": [
+            "run_dir"
           ]
         }
       ]
