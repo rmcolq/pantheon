@@ -38,6 +38,9 @@
           "required": [
             "run_dir",
             "wf_dir"
+          ],
+          "required": [
+            "unique_id"
           ]
         }
       ]
