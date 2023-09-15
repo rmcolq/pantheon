@@ -36,11 +36,10 @@
       "allOf": [
         {
           "required": [
-            "run_dir",
-            "wf_dir"
+            "run_dir"
           ],
           "required": [
-            "unique_id"
+            "wf_dir"
           ]
         }
       ]
