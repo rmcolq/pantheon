@@ -35,7 +35,7 @@
           "description": "This is used to name the final report and directory of summary outputs."
         }
       },
-      "oneOf": [
+      "allOf": [
         {
           "required": [
             "run_dir",
@@ -87,7 +87,7 @@
           "description": "String to separate segmented genomes parts within the reference (and assembly)."
         }
       },
-      "oneOf": [
+      "allOf": [
         {
           "required": [
             "taxon_names"
@@ -127,7 +127,7 @@
           "help_text": "This field is currently only used for NCBI entrez direct queries and has to look like a real email."
         }
       },
-      "oneOf": [
+      "allOf": [
         {
           "required": [
             "ncbi_api_key"
