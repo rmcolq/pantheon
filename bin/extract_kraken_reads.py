@@ -550,9 +550,9 @@ def main():
     # get taxids to extract
     all_ids = []
     for id in args.taxid:
-        all_ids.extend(id.split(",")
+        all_ids.extend(id.split(","))
     args.taxid = all_ids
-    sys.stdout.write("Restricting to taxa [%s]\n" %(",".join(args.taxid))
+    sys.stdout.write("Restricting to taxa [%s]\n" %(",".join(args.taxid)))
 
     report_entries = load_report_file(args.report_file, args.max_human)
     lists_to_extract = get_taxon_id_lists(
