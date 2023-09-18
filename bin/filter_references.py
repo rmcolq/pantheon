@@ -29,13 +29,13 @@ def parse_name(s, strain):
         s = " ".join([s,strain])
     return s
 
-def combine_references(ref_dict, refs, sep):
-    with open("intermediate_references.fa", "w") as f:
+def combine_references(ref_dict, refs, sep, output):
+    with open(output, "w") as f:
         for key in ref_dict:
             ref_seqs = [str(refs[acc].seq) for acc in ref_dict[key] if acc]
             f.write(">%s\n%s\n" %(key.replace(" ","_"), sep.join(ref_seqs)))
 
-def collect_refs(ref_file, summary_file, sep):
+def collect_refs(ref_file, summary_file, sep, output):
     ref_dict = defaultdict(list)
     ref_index = {}
     reserve = defaultdict(list)
@@ -62,47 +62,20 @@ def collect_refs(ref_file, summary_file, sep):
         ref_dict[name].sort(key=lambda s: ref_index[s].description, reverse=True)
         ref_dict[name].sort(key=lambda s: len(ref_index[s]), reverse=True)
 
-    combine_references(ref_dict, ref_index, sep)
+    combine_references(ref_dict, ref_index, sep, output)
 
-
-def map_to_refs(query):
-    counts = defaultdict(int)
-    a = mp.Aligner("intermediate_references.fa")  # load or build index
-    if not a:
-        raise Exception("ERROR: failed to load/build index")
-
-    for name, seq, qual in mp.fastx_read(query): # read a fasta/q sequence
-        for hit in a.map(seq): # traverse alignments
-            counts[hit.ctg] += 1
-            #print("{}\t{}\t{}\t{}\t{}".format(name, hit.ctg, hit.r_st, hit.r_en, hit.cigar_str))
-            break
-    return counts
-
-def output_references(counts, min_count):
-    refs = SeqIO.index("intermediate_references.fa", 'fasta')
-    with open("filtered_references.fa", "w") as f:
-        for ref in counts:
-            print("Reference %s has %i mapped reads" %(ref, counts[ref]))
-            if counts[ref] > min_count:
-                SeqIO.write(refs[ref], f, 'fasta')
-            else:
-                print("Excluded: this is smaller than min_count %i" %min_count)
 
 def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-r","--reference", help="Reference FASTA", required=True)
     parser.add_argument("-s", "--summary", help="Summary TSV of references downloaded", required=True)
-
-    parser.add_argument("-q","--query", help="Read FASTQ.GZ", required=True)
+    parser.add_argument("-o", "--output", help="Outfile name", default="filtered_references.fa")
 
     parser.add_argument("--segment_sep", help="String to use as seperator when concatenating segments", default="NNNNNNNNNNNNNNNNNNNNNNNNNNNNNN")
-    parser.add_argument("--min_count", help="Minimum number of mapped reads to continue with reference", default=50, type=int)
     args = parser.parse_args()
 
-    collect_refs(args.reference, args.summary, args.segment_sep)
-    counts = map_to_refs(args.query)
-    output_references(counts, args.min_count)
+    collect_refs(args.reference, args.summary, args.segment_sep, args.output)
 
 if __name__ == "__main__":
     main()

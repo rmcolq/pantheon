@@ -49,6 +49,27 @@ def load_from_taxonomy(taxonomy_dir):
         sys.exit(2)
     return parents, children
 
+def translate_names(taxonomy_dir, taxon_names):
+    taxon_ids = {}
+    taxonomy = os.path.join(taxonomy_dir, "names.dmp")
+    try:
+        with open(taxonomy, "r") as f:
+            for line in f:
+                fields = line.strip().split("\t|")
+                taxon_id, name, name_type = fields[0].strip(), fields[1].strip(), fields[3].strip()
+                if name not in taxon_names and taxon_id not in taxon_names:
+                    continue
+                if name_type != "scientific name":
+                    continue
+                taxon_ids[taxon_id] = name
+
+    except:
+        sys.stderr.write(
+            "ERROR: Could not find taxonomy names.dmp file in %s" %taxonomy_dir)
+        sys.exit(2)
+    print("Translations", taxon_ids)
+    return taxon_ids
+
 
 def parse_depth(name):
     parse_name = name.split(" ")
@@ -59,44 +80,6 @@ def parse_depth(name):
         depth += 1
     depth = int(depth / 2)
     return depth
-
-def infer_hierarchy(report_file):
-    parents = {}
-    children = defaultdict(list)
-    hierarchy = []
-    with open(report_file, "r") as f:
-        for line in f:
-            if line.startswith("% of Seqs"):
-                continue
-            try:
-                (
-                    percentage,
-                    num_clade_root,
-                    num_direct,
-                    raw_rank,
-                    ncbi,
-                    name,
-                ) = line.strip().split("\t")
-            except:
-                (
-                    percentage,
-                    num_clade_root,
-                    num_direct,
-                    ignore1,
-                    ignore2,
-                    raw_rank,
-                    ncbi,
-                    name,
-                ) = line.strip().split("\t")
-        depth = parse_depth(name)
-        hierarchy = hierarchy[: depth - 1]
-        hierarchy.append(ncbi)
-
-        if len(hierarchy) > 1:
-            parent = hierarchy[-2]
-            parents[ncbi] = parent
-            children[parent].append(ncbi)
-    return parents, children
 
 
 def load_report_file(report_file, max_human=None):
@@ -134,15 +117,6 @@ def load_report_file(report_file, max_human=None):
             name = name.strip()
             rank = raw_rank[0]
 
-            if name in ["Homo sapiens", "unclassified", "root"]:
-                if max_human and name == "Homo sapiens" and num_direct > max_human:
-                    sys.stderr.write(
-                        "ERROR: found %i human reads, max allowed is %i\n"
-                        % (num_direct, max_human)
-                    )
-                    sys.exit(2)
-                continue
-
             entries[ncbi] = {
                 "percentage": percentage,
                 "count": num_direct,
@@ -154,6 +128,52 @@ def load_report_file(report_file, max_human=None):
 
     sys.stdout.write("FOUND %i TAXA IN BRACKEN REPORT\n" % len(entries))
     return entries
+
+def get_taxon_list(taxon, include_parents, parents, include_children, children):
+    taxon_list = [taxon]
+    if include_parents:
+        lookup = taxon
+        while (lookup in parents and lookup != "1") :
+            lookup = parents[lookup]
+            if lookup != "1":
+                taxon_list.append(lookup)
+
+    if include_children:
+        lookup = [taxon]
+        while len(lookup) > 0:
+            child = lookup.pop()
+            if child != taxon:
+                taxon_list.append(child)
+            lookup.extend(children[child])
+    return taxon_list
+
+def infer_entry(taxon, name, children, report_entries, parent_rank):
+    lookup = children[taxon]
+    report_entries[taxon] = {
+                            "percentage": 0,
+                            "count": 0,
+                            "count_descendants": 0,
+                            "raw_rank": "",
+                            "rank": "",
+                            "name": name
+                            }
+    child_ranks = []
+    for child in children[taxon]:
+        if child in report_entries:
+            #print(report_entries[child])
+            report_entries[taxon]["count_descendants"] += report_entries[child]["count_descendants"]
+            report_entries[taxon]["percentage"] += report_entries[child]["percentage"]
+            child_ranks.append(report_entries[child]["raw_rank"])
+    #print(child_ranks)
+    if len(child_ranks) > 0:
+        child_rank = min(child_ranks)
+        #print(child_rank)
+        if len(child_rank) == 2:
+            rank = child_rank[0]
+        else:
+            rank = parent_rank[child_rank]
+        #print(rank)
+        report_entries[taxon]["rank"] = rank
 
 
 def get_taxon_id_lists(
@@ -172,7 +192,6 @@ def get_taxon_id_lists(
     lists_to_extract = {}
     for taxon in report_entries:
         entry = report_entries[taxon]
-        print(entry)
         if len(target_ranks) > 0 and entry["rank"] not in target_ranks:
             continue
         if min_count and entry["count"] < min_count:
@@ -184,21 +203,12 @@ def get_taxon_id_lists(
         if len(names) > 0 and entry["name"] not in names and taxon not in names:
             continue
 
-        lists_to_extract[taxon] = [taxon]
-        if include_parents:
-            lookup = taxon
-            while (lookup in parents and lookup != "1") :
-                lookup = parents[lookup]
-                if lookup != "1":
-                    lists_to_extract[taxon].append(lookup)
+        lists_to_extract[taxon] = get_taxon_list(taxon, include_parents, parents, include_children, children)
 
-        if include_children:
-            lookup = [taxon]
-            while len(lookup) > 0:
-                child = lookup.pop()
-                if child != taxon:
-                    lists_to_extract[taxon].append(child)
-                lookup.extend(children[child])
+    for id in names:
+        if id not in lists_to_extract:
+            lists_to_extract[id] = [id]
+
     sys.stdout.write("SELECTED %i TAXA TO EXTRACT\n" % len(lists_to_extract))
 
     if top_n and len(lists_to_extract) > top_n:
@@ -274,6 +284,16 @@ def extract_taxa(
 
     keys = {}
     for taxon in lists_to_extract:
+        out_counts[taxon] = 0
+        quals[taxon] = []
+        lens[taxon] = []
+        sys.stdout.write(
+            "INCLUDING PARENTS/CHILDREN, HAVE %i TAXA TO INCLUDE IN READ FILES for %s\n"
+            % (len(lists_to_extract[taxon]), taxon)
+        )
+        if len(lists_to_extract[taxon]) == 0:
+            continue
+
         out_prefix = "_".join([prefix, taxon])
         for key in lists_to_extract[taxon]:
             if key not in keys:
@@ -291,13 +311,7 @@ def extract_taxa(
         else:
             outfile_handles[taxon] = open("%s.%s" % (out_prefix, filetype), "w")
             print("opening %s.%s" % (out_prefix, filetype))
-        out_counts[taxon] = 0
-        quals[taxon] = []
-        lens[taxon] = []
-        sys.stdout.write(
-            "INCLUDING PARENTS/CHILDREN, HAVE %i TAXA TO INCLUDE IN READ FILES for %s\n"
-            % (len(lists_to_extract[taxon]), taxon)
-        )
+
 
     with open(kraken_assignment_file, "r") as kfile:
         for line in kfile:
@@ -360,6 +374,7 @@ def extract_taxa(
                     "human_readable": report_entries[taxon]["name"],
                     "taxon": taxon,
                     "tax_level": report_entries[taxon]["rank"],
+                    "report_count": report_entries[taxon]["count_descendants"],
                     "filenames": [
                         "%s_1.%s" % (out_prefix, filetype),
                         "%s_2.%s" % (out_prefix, filetype),
@@ -377,6 +392,7 @@ def extract_taxa(
                     "human_readable": report_entries[taxon]["name"],
                     "taxon": taxon,
                     "tax_level": report_entries[taxon]["rank"],
+                    "report_count": report_entries[taxon]["count_descendants"],
                     "filenames": [
                         "%s.%s" % (out_prefix, filetype),
                     ],
@@ -387,12 +403,25 @@ def extract_taxa(
                     },
                 }
             )
-    out_summary = "_".join([prefix, "summary.json"])
-    with open(out_summary, "w") as f:
-        print(summary)
-        json.dump(summary, f)
-    return out_counts
 
+    return out_counts, summary
+
+def extend_summary(summary, report_entries):
+    for taxon in ['9606', '0']:
+        if taxon in report_entries:
+            summary.append(
+                {
+                    "human_readable": report_entries[taxon]["name"],
+                    "taxon": taxon,
+                    "tax_level": report_entries[taxon]["rank"],
+                    "report_count": report_entries[taxon]["count_descendants"],
+                    "report_percentage": report_entries[taxon]["percentage"],
+                    "filenames": [],
+                    "qc_metrics": {},
+                }
+            )
+
+    return summary
 
 # Main method
 def main():
@@ -535,31 +564,45 @@ def main():
         "G": "G",
         "S": "S",
     }
+    parent_rank = {
+            "K": "R",
+            "D": "K",
+            "P": "D",
+            "C": "P",
+            "O": "C",
+            "F": "O",
+            "G": "F",
+            "S": "G",
+        }
     if args.rank:
         target_ranks = [rank_dict[r] for r in args.rank]
     else:
         target_ranks = []
     print(target_ranks)
 
-    parent, children = None, None
-    if args.taxonomy:
-        parent, children = load_from_taxonomy(args.taxonomy)
-    else:
-        parent, children = infer_hierarchy(report_file)
-
     # get taxids to extract
     all_ids = []
     for id in args.taxid:
         all_ids.extend(id.split(","))
-    args.taxid = all_ids
-    sys.stdout.write("Restricting to taxa [%s]\n" %(",".join(args.taxid)))
+    id_dict = translate_names(args.taxonomy, all_ids)
+    all_ids = id_dict.keys()
+    sys.stdout.write("Restricting to taxa [%s]\n" %(",".join(all_ids)))
+
+    parent, children = None, None
+    parent, children = load_from_taxonomy(args.taxonomy)
 
     report_entries = load_report_file(args.report_file, args.max_human)
+    for taxon in all_ids:
+        if taxon not in report_entries:
+            infer_entry(taxon, id_dict[taxon], children, report_entries, parent_rank)
+    if '9606' not in report_entries:
+        infer_entry('9606', "Homo sapiens", children, report_entries, parent_rank)
+
     lists_to_extract = get_taxon_id_lists(
         report_entries,
         parent,
         children,
-        names=args.taxid,
+        names=all_ids,
         target_ranks=target_ranks,
         min_count=args.min_count,
         min_count_descendants=args.min_count_descendants,
@@ -569,7 +612,7 @@ def main():
         include_children=args.include_children,
         )
 
-    out_counts = extract_taxa(
+    out_counts, summary = extract_taxa(
         report_entries,
         lists_to_extract,
         args.kraken_assignment_file,
@@ -586,6 +629,15 @@ def main():
 
     for taxon in out_counts:
         sys.stdout.write("%s: %i\n" % (taxon, out_counts[taxon]))
+
+    summary = extend_summary(summary, report_entries)
+    out_summary = "_".join([args.prefix, "summary.json"])
+    with open(out_summary, "w") as f:
+        json.dump(summary, f)
+
+    out_human = "_".join([args.prefix, "human.txt"])
+    with open(out_human, "w") as f:
+        f.write("%i" %report_entries['9606']["count_descendants"])
 
     sys.exit(0)
 

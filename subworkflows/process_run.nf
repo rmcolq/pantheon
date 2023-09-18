@@ -1,6 +1,6 @@
 // workflow to extract reads and create assemblies from a wf-metagenomic or scylla run
-include { move_or_compress; unpack_taxonomy; extract_reads; taxid_from_name; download_references_by_taxid } from '../modules/preprocess'
-include { filter_references; medaka_consensus } from '../modules/assemble_taxa'
+include { move_or_compress; unpack_taxonomy; extract_reads; check_reads; taxid_from_name; download_references_by_taxid; filter_references } from '../modules/preprocess'
+include { subset_references; check_subset; medaka_consensus } from '../modules/assemble_taxa'
 
 EXTENSIONS = ["fastq", "fastq.gz", "fq", "fq.gz"]
 
@@ -46,10 +46,13 @@ workflow process_run {
             ch_taxa = Channel.from(taxa_list)
             taxid_from_name(ch_taxa)
             taxid_from_name.out.map{ it -> it[1] }.set{ taxid_ch }
+            taxid_from_name.out.map{ name, taxid -> "$name,$taxid" }.collectFile(name: "${params.outdir}/references/references.csv", newLine: true)
+
         } else {
             exit 1, "Must provide a list of taxon names with --taxon_names. These should be a comma separated list, and each taxon item should have quotes to allow effective parsing of spaces"
         }
-        ch_references = download_references_by_taxid(taxid_ch)
+        download_references_by_taxid(taxid_ch)
+        ch_references = filter_references(download_references_by_taxid.out)
 
         if ( params.wf_dir ) {
             wf_dir = file("${params.wf_dir}", type: "dir", checkIfExists:true)
@@ -69,12 +72,15 @@ workflow process_run {
                 .set{ ch_barcode }
 
             extract_reads(ch_barcode, taxonomy)
-            extract_reads.out.reads.transpose()
+            check_reads(extract_reads.out.reads)
+            check_reads.out.transpose()
               .map{ it -> [it[1].simpleName.replace("reads_",""), it[0], it[1]] }
               .set{ ch_reads }
 
             ch_assembly = ch_reads.combine(ch_references, by: 0)
-            filter_references(ch_assembly)
-            medaka_consensus(filter_references.out)
+            subset_references(ch_assembly)
+            check_subset(subset_references.out.all)
+            medaka_consensus(check_subset.out)
+            subset_references.out.summary.collectFile(name: "${params.outdir}/${unique_id}/reference_by_barcode.csv", keepHeader: true, skip:1)
         }
 }

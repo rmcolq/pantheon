@@ -1,4 +1,4 @@
-process filter_references {
+process subset_references {
 
     label 'process_low'
 
@@ -8,18 +8,37 @@ process filter_references {
     container "${params.wf.container}@${params.wf.container_sha}"
 
     input:
-        tuple val(taxon_id), val(barcode_id), path(reads), path(reference_fa), path(reference_summary)
+        tuple val(taxon_id), val(barcode_id), path(reads), path(reference_fa)
     output:
-        tuple val(taxon_id), val(barcode_id), path(reads),  path("filtered_references.fa")
+        tuple val(taxon_id), val(barcode_id), path(reads),  path("${barcode_id}_${taxon_id}_reference.fa"), emit: all
+        path "summary.csv", emit: summary
     script:
         """
-        infer_references.py \
-          -r ${reference_fa} -s ${reference_summary} \
+        subset_references.py \
+          -r ${reference_fa} \
           -q ${reads} \
+          -o "${barcode_id}_${taxon_id}_reference.fa" \
           --min_count ${params.reference_min_count} \
-          --segment_sep ${params.reference_segment_sep}
+          --taxid ${taxon_id} --barcode ${barcode_id}
+        """
+}
 
-        if [ ! -s "filtered_references.fa" ]
+process check_subset {
+
+    label 'process_low'
+
+    errorStrategy {task.exitStatus == 2 ? 'ignore' : 'terminate'}
+
+    conda 'bioconda::biopython=1.78 bioconda::tabix=1.11 bioconda::mappy=2.26'
+    container "${params.wf.container}@${params.wf.container_sha}"
+
+    input:
+        tuple val(taxon_id), val(barcode_id), path(reads), path(reference_fa)
+    output:
+        tuple val(taxon_id), val(barcode_id), path(reads),  path(reference_fa)
+    script:
+        """
+        if [ ! -s "${reference_fa}" ]
         then
             echo "No references for this taxid had sufficient reads to continue"
             exit 2
