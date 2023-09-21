@@ -12,4 +12,6 @@ dependencies:
   - biopython
   - mappy
   - tabix
+  - mako
+  - entrez-direct
 

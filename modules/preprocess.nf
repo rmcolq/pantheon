@@ -138,7 +138,7 @@ process taxid_from_name {
     input:
         val taxon_name
     output:
-        tuple val(taxon_name), stdout
+        tuple stdout, val(taxon_name)
     """
     esearch -db taxonomy -query "${taxon_name}" | efetch -format xml  | xtract -pattern Taxon -element TaxId | tr -d '\n'
     """
@@ -209,7 +209,8 @@ process filter_references {
     input:
         tuple val(taxon_id), path(reference_fa), path(reference_summary)
     output:
-        tuple val(taxon_id), path("references_${taxon_id}.fa")
+        tuple val(taxon_id), path("references_${taxon_id}.fa"), emit: refs
+        tuple val(taxon_id), stdout, emit: counts
     script:
         """
         filter_references.py \
@@ -217,13 +218,13 @@ process filter_references {
           -o "references_${taxon_id}.fa" \
           --segment_sep ${params.reference_segment_sep}
 
-        echo
-
         if [ ! -s "references_${taxon_id}.fa" ]
         then
             echo "No references found for this taxid"
             exit 2
         fi
+
+        grep ">" "references_${taxon_id}.fa" | wc -l | tr -d '\n'
         """
 }
 

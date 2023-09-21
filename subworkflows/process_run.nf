@@ -22,13 +22,22 @@ workflow process_run {
             taxa_list = params.taxon_names?.split(',') as List
             ch_taxa = Channel.from(taxa_list)
             taxid_from_name(ch_taxa)
-            taxid_from_name.out.map{ it -> it[1] }.set{ taxid_ch }
-            taxid_from_name.out.map{ name, taxid -> "$name,$taxid" }.collectFile(name: "${params.outdir}/references/references.csv", newLine: true).set{ reference_summary }
+            taxid_from_name.out
+                .tap{ ref_pair_ch }
+                .map{ it -> it[0] }
+                .tap{ taxid_ch }
+            download_references_by_taxid(taxid_ch)
+            filter_references(download_references_by_taxid.out)
+
+            ref_pair_ch
+                .join(filter_references.out.counts)
+                .map{ taxid, name, count -> "$name,$taxid,$count" }
+                .collectFile(name: "${params.outdir}/references/references.csv", newLine: true)
+                .set{ reference_summary }
+            ch_references = filter_references.out.refs
         } else {
             exit 1, "Must provide a list of taxon names with --taxon_names. These should be a comma separated list, and each taxon item should have quotes to allow effective parsing of spaces"
         }
-        download_references_by_taxid(taxid_ch)
-        ch_references = filter_references(download_references_by_taxid.out)
 
         if ( params.wf_dir ) {
             wf_dir = file("${params.wf_dir}", type: "dir", checkIfExists:true)
