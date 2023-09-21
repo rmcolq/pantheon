@@ -62,7 +62,7 @@ process extract_reads {
         path taxonomy_dir
     output:
         tuple val(unique_id), path("reads_*.f*"), path("reads_human.txt"), emit: reads
-        tuple val(unique_id), path("reads_summary.json"), emit: summary
+        path "${unique_id}_summary.json", emit: summary
     script:
         if ( params.taxon_names )
             taxid = "--taxid \"${params.taxon_names}\""
@@ -79,6 +79,9 @@ process extract_reads {
             --min_count_descendants ${params.extract_min_reads} \
             --rank ${params.extract_rank} \
             --min_percent ${params.extract_min_percent} ${taxid}
+
+        file1=`cat reads_summary.json`
+        echo "{"'"${unique_id}"'": "\$file1"}" >> "${unique_id}_summary.json"
         """
 }
 

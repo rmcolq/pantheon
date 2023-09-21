@@ -1,6 +1,7 @@
 // workflow to extract reads and create assemblies from a wf-metagenomic or scylla run
 include { move_or_compress; unpack_taxonomy; extract_reads; check_reads; taxid_from_name; download_references_by_taxid; filter_references } from '../modules/preprocess'
 include { subset_references; check_subset; medaka_consensus } from '../modules/assemble_taxa'
+include { generate_assembly_report } from '../modules/generate_report'
 
 EXTENSIONS = ["fastq", "fastq.gz", "fq", "fq.gz"]
 
@@ -8,30 +9,6 @@ ArrayList get_fq_files_in_dir(Path dir) {
     return EXTENSIONS.collect { file(dir.resolve("*.$it"), type: "file") } .flatten()
 }
 
-
-
-workflow process_barcode {
-    take:
-        barcode_id
-        barcode_fq
-        taxonomy
-    main:
-        if ( params.wf_dir ) {
-            wf_dir = file("${params.wf_dir}", type: "dir", checkIfExists:true)
-            bracken_report = file("${params.wf_dir}/output/bracken/${barcode_id}.kreport_bracken_species.txt", type: "file", checkIfExists:true)
-            kraken_assignments = file("${params.wf_dir}/work/*/*/${barcode_id}.kraken2.assignments.tsv", type: "file", checkIfExists:true)
-            wf_report = file("${params.wf_dir}/output/wf-metagenomics-report.html", type: "file", checkIfExists:true)
-
-            extract_reads(barcode_id, barcode_fq, kraken_assignments, bracken_report, taxonomy)
-        } else {
-            exit 1, "Note wf_dir needs to be provided -- aborting"
-        }
-    emit:
-        barcode_summary = extract_reads.out.summary
-        barcode_kreport = bracken_report
-        barcode_wfreport = wf_report
-        barcode_id = barcode_id
-}
 
 workflow process_run {
     take:
@@ -46,8 +23,7 @@ workflow process_run {
             ch_taxa = Channel.from(taxa_list)
             taxid_from_name(ch_taxa)
             taxid_from_name.out.map{ it -> it[1] }.set{ taxid_ch }
-            taxid_from_name.out.map{ name, taxid -> "$name,$taxid" }.collectFile(name: "${params.outdir}/references/references.csv", newLine: true)
-
+            taxid_from_name.out.map{ name, taxid -> "$name,$taxid" }.collectFile(name: "${params.outdir}/references/references.csv", newLine: true).set{ reference_summary }
         } else {
             exit 1, "Must provide a list of taxon names with --taxon_names. These should be a comma separated list, and each taxon item should have quotes to allow effective parsing of spaces"
         }
@@ -56,6 +32,7 @@ workflow process_run {
 
         if ( params.wf_dir ) {
             wf_dir = file("${params.wf_dir}", type: "dir", checkIfExists:true)
+            ch_kraken = Channel.fromPath("${wf_dir}/output/kraken/*.kreport.txt", type: "file", checkIfExists:true).map { [it.simpleName, it]}
             ch_bracken = Channel.fromPath("${wf_dir}/output/bracken/*.kreport_bracken_species.txt", type: "file", checkIfExists:true).map { [it.simpleName, it]}
             ch_assignments = Channel.fromPath("${params.wf_dir}/work/*/*/*.kraken2.assignments.tsv", type: "file", checkIfExists:true).map { [it.simpleName, it]}
 
@@ -67,11 +44,16 @@ workflow process_run {
             }
 
             ch_input
+                .join(ch_kraken)
+                .map{ barcode, reads, kraken -> "$barcode,$reads,$kraken" }.collectFile(name: "${params.outdir}/${unique_id}/input.csv", newLine: true).set{ input_summary }
+
+            ch_input
                 .join(ch_assignments)
                 .join(ch_bracken)
                 .set{ ch_barcode }
 
             extract_reads(ch_barcode, taxonomy)
+            extract_reads.out.summary.collectFile(name: "${params.outdir}/${unique_id}/extract_summary.json").set{ extract_summary }
             check_reads(extract_reads.out.reads)
             check_reads.out.transpose()
               .map{ it -> [it[1].simpleName.replace("reads_",""), it[0], it[1]] }
@@ -81,6 +63,8 @@ workflow process_run {
             subset_references(ch_assembly)
             check_subset(subset_references.out.all)
             medaka_consensus(check_subset.out)
-            subset_references.out.summary.collectFile(name: "${params.outdir}/${unique_id}/reference_by_barcode.csv", keepHeader: true, skip:1)
+            subset_references.out.summary.collectFile(name: "${params.outdir}/${unique_id}/reference_by_barcode.csv", keepHeader: true, skip:1).set{ assembly_summary }
+
+            generate_assembly_report(unique_id, input_summary, reference_summary, extract_summary, assembly_summary)
         }
 }
