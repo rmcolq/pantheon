@@ -1,6 +1,6 @@
 // workflow to extract reads and create assemblies from a wf-metagenomic or scylla run
 include { move_or_compress; unpack_taxonomy; extract_reads; check_reads; taxid_from_name; download_references_by_taxid; filter_references } from '../modules/preprocess'
-include { subset_references; check_subset; medaka_consensus } from '../modules/assemble_taxa'
+include { assemble } from '../modules/assemble_taxa'
 include { generate_assembly_report } from '../modules/generate_report'
 
 EXTENSIONS = ["fastq", "fastq.gz", "fq", "fq.gz"]
@@ -69,11 +69,8 @@ workflow process_run {
               .set{ ch_reads }
 
             ch_assembly = ch_reads.combine(ch_references, by: 0)
-            subset_references(ch_assembly)
-            check_subset(subset_references.out.all)
-            medaka_consensus(check_subset.out)
-            subset_references.out.summary.collectFile(name: "${params.outdir}/${unique_id}/reference_by_barcode.csv", keepHeader: true, skip:1).set{ assembly_summary }
+            assemble(unique_id, ch_assembly)
 
-            generate_assembly_report(unique_id, input_summary, reference_summary, extract_summary, assembly_summary)
+            generate_assembly_report(unique_id, input_summary, reference_summary, extract_summary, assemble.out.summary)
         }
 }

@@ -14,4 +14,9 @@ dependencies:
   - tabix
   - mako
   - entrez-direct
+  - minimap2
+  - samtools=1.17
+  - bedtools
+  - pip:
+      - git+https://github.com/Desperate-Dan/maskara.git
 

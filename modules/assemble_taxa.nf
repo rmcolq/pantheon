@@ -69,3 +69,74 @@ process medaka_consensus {
         mv medaka_output/consensus.fasta "assembly_${taxon_id}.fa"
         """
 }
+
+process map_to_consensus {
+
+    label 'process_low'
+
+    conda 'bioconda::minimmap2=v2.26 bioconda::samtools=v1.17'
+    container "${params.wf.container}@${params.wf.container_sha}"
+
+    input:
+        tuple val(taxon_id), val(barcode_id), path(reads), path(assembly)
+    output:
+        tuple val(taxon_id), val(barcode_id), path(reads), path(assembly), path("out.bam"), path("out.bam.csi")
+    script:
+        """
+        minimap2 -x map-ont -a ${assembly} ${reads} | samtools sort -o out.bam --write-index -
+        """
+}
+
+process define_mask {
+
+    label 'process_low'
+
+    container "${params.wf.container}@${params.wf.container_sha}"
+
+    input:
+        tuple val(taxon_id), val(barcode_id), path(reads), path(assembly), path(bam), path(index)
+    output:
+        tuple val(taxon_id), val(barcode_id), path(reads), path(assembly), path("mask.bed.tsv")
+    script:
+        """
+        str=\$(head -n1 ${assembly})
+        ref="\${str: 1}"
+        maskara -d ${params.mask_depth} -r \$ref -o mask.bed ${bam}
+        """
+}
+
+process apply_mask {
+
+    label 'process_low'
+
+    publishDir path: "${params.outdir}/${barcode_id}/assemblies", mode: 'copy', pattern: 'assembly_*.fa'
+
+    conda 'bioconda::bedtools=v2.31.0'
+    container "${params.wf.container}@${params.wf.container_sha}"
+
+    input:
+        tuple val(taxon_id), val(barcode_id), path(reads), path(assembly), path(mask)
+    output:
+        tuple val(taxon_id), val(barcode_id), path(reads), path("assembly_${taxon_id}.masked.fa")
+    script:
+        """
+        bedtools maskfasta -fi ${assembly} -bed ${mask} -fo "assembly_${taxon_id}.masked.fa"
+        """
+}
+
+workflow assemble {
+    take:
+        unique_id
+        ch_assembly
+    main:
+        subset_references(ch_assembly)
+        check_subset(subset_references.out.all)
+        medaka_consensus(check_subset.out)
+        map_to_consensus(medaka_consensus.out)
+        define_mask(map_to_consensus.out)
+        apply_mask(define_mask.out)
+        subset_references.out.summary.collectFile(name: "${params.outdir}/${unique_id}/reference_by_barcode.csv", keepHeader: true, skip:1).set{ assembly_summary }
+    emit:
+        completed = apply_mask.out
+        summary = assembly_summary
+    }
