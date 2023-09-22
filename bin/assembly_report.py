@@ -41,7 +41,7 @@ def parse_counts(kraken_file):
             else:
                 counts["classified"] += int(num_direct)
                 if num_direct > 0:
-                    counts["num_taxa"] += 1
+                    counts["taxa"] += 1
     return counts
 
 def get_input_info(csv_file):
@@ -72,11 +72,11 @@ def get_extract_info(extract_summary):
 
 def update_summary_with_extract_info(summary_info, extract_info, keys=[]):
     for barcode in summary_info:
-        summary_info[barcode]["num_extracted"] = 0
+        summary_info[barcode]["extracted"] = 0
         if barcode in extract_info:
             for taxon in extract_info[barcode]:
                 if extract_info[barcode][taxon]["filenames"] != [] and extract_info[barcode][taxon]["report_count"] > 0:
-                    summary_info[barcode]["num_extracted"] += 1
+                    summary_info[barcode]["extracted"] += 1
         for key in keys:
             if key not in summary_info[barcode]:
                 summary_info[barcode][key] = 0
@@ -98,25 +98,31 @@ def get_assembly_info(assembly_summary):
 
 def update_summary_with_assembly_info(summary_info, assembly_info, min_read_count):
     for barcode in summary_info:
-        summary_info[barcode]["num_assembled"] = 0
+        summary_info[barcode]["assembled"] = 0
         summary_info[barcode]["assemblies"] = {}
     for entry in assembly_info:
         if entry["read_count"] > min_read_count:
-            summary_info[entry["barcode"]]["num_assembled"] += 1
-            summary_info[entry["barcode"]]["assemblies"][entry["taxid"]] = entry["reference"]
-
+            summary_info[entry["barcode"]]["assembled"] += 1
+            if entry["taxid"] in summary_info[entry["barcode"]]["assemblies"]:
+                summary_info[entry["barcode"]]["assemblies"][entry["taxid"]] = ",".join([summary_info[entry["barcode"]]["assemblies"][entry["taxid"]], entry["reference"]])
+            else:
+                summary_info[entry["barcode"]]["assemblies"][entry["taxid"]] = entry["reference"]
 
 def get_reference_info(reference_summary):
     reference_info = defaultdict(lambda:defaultdict(str))
     with open(reference_summary, 'r') as in_csv:
         for line in in_csv:
             name, taxid, num_references = line.strip().split(',')
-    reference_info[taxid] = {"name":name, "taxid":taxid, "num_refs": num_references}
+            reference_info[taxid] = {"name":name, "taxid":taxid, "num_refs": num_references}
 
     return reference_info
 
+def add_taxon_name_to_assembly_info(assembly_info, reference_info):
+    for entry in assembly_info:
+        entry.update({"taxon_name": reference_info[entry["taxid"]]["name"]})
 
-def make_output_report(report_to_generate, template, run, data_for_report):
+
+def make_output_report(report_to_generate, template, run, version, data_for_report):
     template_dir = os.path.abspath(os.path.dirname(__file__))
     mylookup = TemplateLookup(directories=[template_dir]) #absolute or relative works
     mytemplate = mylookup.get_template(template)
@@ -125,7 +131,7 @@ def make_output_report(report_to_generate, template, run, data_for_report):
 
     ctx = Context(buf,
                     date = date.today(),
-                    version = "__version__",
+                    version = version,
                     run=run,
                     data_for_report = data_for_report)
 
@@ -155,6 +161,7 @@ def main():
     parser.add_argument("-t","--template", help="HTML template for report", default="assembly_report.mako.html")
     parser.add_argument("--run", help="Run name", default = "pantheon")
     parser.add_argument("--min_read_count", help="Min read count for assembly", type=int)
+    parser.add_argument("--version", help="Pantheon version", default="__version__")
     args = parser.parse_args()
 
 
@@ -162,26 +169,28 @@ def main():
 
     summary_info = get_input_info(args.input)
     extract_info = get_extract_info(args.extract_summary)
-    update_summary_with_extract_info(summary_info, extract_info, keys=["classified", "unclassified", "human", "num_taxa", "num_extracted"])
+    update_summary_with_extract_info(summary_info, extract_info, keys=["classified", "unclassified", "human", "taxa", "extracted"])
+
+    ref_info = get_reference_info(args.reference_summary)
     assembly_info = get_assembly_info(args.assembly_summary)
     update_summary_with_assembly_info(summary_info, assembly_info, args.min_read_count)
+    add_taxon_name_to_assembly_info(assembly_info, ref_info)
 
-    data_for_report["summary_table_header"] = ["barcode", "reads", "kraken_report", "classified", "unclassified", "human", "num_taxa", "num_extracted", "num_assembled", "assemblies"]
+    data_for_report["summary_table_header"] = ["barcode", "reads", "kraken_report", "classified", "unclassified", "human", "taxa", "extracted", "assembled", "assemblies"]
     data_for_report["summary_table"] = [summary_info[sample] for sample in summary_info]
     for key in data_for_report["summary_table_header"]:
         for sample in summary_info:
             if key not in summary_info[sample]:
                 print(sample, key, summary_info[sample])
 
-    ref_info = get_reference_info(args.reference_summary)
     data_for_report["reference_table_header"] = ["name", "taxid", "num_refs"]
     data_for_report["reference_table"] = [ref_info[ref] for ref in ref_info]
 
-    data_for_report["assembly_table_header"] = ["taxid", "barcode", "reference", "read_count"]
+    data_for_report["assembly_table_header"] = ["taxon_name", "taxid", "barcode", "reference", "read_count"]
     data_for_report["assembly_table"] = assembly_info
 
     outfile = "%s_assembly_report.html" %args.run
-    make_output_report(outfile, args.template, args.run, data_for_report)
+    make_output_report(outfile, args.template, args.run, args.version, data_for_report)
 
 if __name__ == "__main__":
     main()

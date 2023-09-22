@@ -23,6 +23,7 @@ process generate_assembly_report {
           --extract_summary ${extract_summary} \
           --assembly_summary ${assembly_summary} \
           --min_read_count ${params.reference_min_count} \
-          --run ${unique_id}
+          --run ${unique_id} \
+          --version ${workflow.manifest.version}
         """
 }
