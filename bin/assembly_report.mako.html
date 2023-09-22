@@ -563,7 +563,7 @@
       <% this_barcode = row["barcode"] %>
       <td>
         % for taxid in row["assemblies"]:
-        <a href="${this_barcode}/assemblies/assembly_${taxid}.fa" target="_blank" style="color:${themeColor}"><strong>${row["assemblies"][taxid]}</strong></a>
+        <a href="${this_barcode}/assemblies/assembly_${taxid}.masked.fa" target="_blank" style="color:${themeColor}"><strong>${row["assemblies"][taxid]}</strong></a>
         %endfor
       </td>
       %else:
