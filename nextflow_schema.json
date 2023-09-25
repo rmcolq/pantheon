@@ -55,7 +55,7 @@
         },
         "max_human_reads_before_rejection": {
           "type": "integer",
-          "default": 10000,
+          "default": 100000,
           "title": "Max human reads before sample rejection",
           "description": "Threshold for the maximum number of human reads permitted in a sample before it is rejected."
         },
@@ -83,6 +83,13 @@
           "default": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
           "title": "Segment seperator",
           "description": "String to separate segmented genomes parts within the reference (and assembly)."
+        },
+        "mask_depth": {
+          "type": "integer",
+          "default": 20,
+          "title": "Mask depth",
+          "description": "Minimum read depth before masking.",
+          "help_text": "Bases of the consensus sequence will be masked with N below this threshold."
         }
       },
       "allOf": [
