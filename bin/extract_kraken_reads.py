@@ -105,7 +105,7 @@ def infer_hierarchy(report_file, taxonomy):
 
 
 def translate_names(taxonomy_dir, taxon_names):
-    taxon_ids = {}
+    taxon_ids = defaultdict(str)
     taxonomy = os.path.join(taxonomy_dir, "names.dmp")
     try:
         with open(taxonomy, "r") as f:
@@ -138,7 +138,7 @@ def parse_depth(name):
 
 
 def load_report_file(report_file, max_human=None):
-    entries = {}
+    entries = defaultdict(lambda: defaultdict(str))
     # parses a kraken or bracken file
     with open(report_file, "r") as f:
         for line in f:
@@ -262,16 +262,21 @@ def get_taxon_id_lists(
             continue
 
         ncbi_key = report_to_ncbi_dict[taxon]
+        sys.stdout.write(f"Taxon {taxon} corresponds to ncbi taxon id {ncbi_key}\n")
         ncbi_ids_from_taxonomy = get_taxon_list(str(ncbi_key), include_parents, parents, include_children, children)
+        sys.stdout.write(f"List of ids inferred from taxonomy {ncbi_ids_from_taxonomy}\n")
         ncbi_ids_from_report = get_taxon_list(taxon, include_parents, report_parents, include_children, report_children)
+        sys.stdout.write(f"List of ids inferred from report {ncbi_ids_from_report}\n")
 
         lists_to_extract[ncbi_key] = list(set(ncbi_ids_from_taxonomy + ncbi_ids_from_report))
 
     for id in names:
         if id not in lists_to_extract:
             lists_to_extract[id] = [id]
+            sys.stdout.write(f"Add {lists_to_extract} to lists for id {id}\n")
 
     sys.stdout.write("SELECTED %i TAXA TO EXTRACT\n" % len(lists_to_extract))
+    print(lists_to_extract)
 
     if top_n and len(lists_to_extract) > top_n:
         X = list(lists_to_extract.keys())
@@ -659,6 +664,9 @@ def main():
     report_entries = load_report_file(args.report_file, args.max_human)
     for taxon in ncbi_ids:
         if taxon not in report_entries:
+            name = None
+            if taxon in id_dict:
+                name = id_dict[taxon]
             infer_entry(taxon, id_dict[taxon], children, report_entries, parent_rank)
     if '9606' not in report_entries:
         infer_entry('9606', "Homo sapiens", children, report_entries, parent_rank)
