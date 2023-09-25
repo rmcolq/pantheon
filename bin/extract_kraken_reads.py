@@ -49,6 +49,61 @@ def load_from_taxonomy(taxonomy_dir):
         sys.exit(2)
     return parents, children
 
+
+def infer_hierarchy(report_file, taxonomy):
+    parents = {}
+    children = defaultdict(list)
+    report_names = []
+    report_to_name = defaultdict(str)
+    report_to_ncbi = defaultdict(str)
+    hierarchy = []
+    with open(report_file, "r") as f:
+        for line in f:
+            if line.startswith("% of Seqs"):
+                continue
+            try:
+                (
+                    percentage,
+                    num_clade_root,
+                    num_direct,
+                    raw_rank,
+                    ncbi,
+                    name,
+                ) = line.strip().split("\t")
+            except:
+                (
+                    percentage,
+                    num_clade_root,
+                    num_direct,
+                    ignore1,
+                    ignore2,
+                    raw_rank,
+                    ncbi,
+                    name,
+                ) = line.strip().split("\t")
+            depth = parse_depth(name)
+            hierarchy = hierarchy[: depth - 1]
+            hierarchy.append(ncbi)
+            name = name.strip()
+
+            if len(hierarchy) > 1:
+                parent = hierarchy[-2]
+                parents[ncbi] = parent
+                children[parent].append(ncbi)
+                report_to_name[ncbi] = name
+                report_names.append(name)
+    name_to_ncbi = {v: k for k, v in translate_names(taxonomy, report_names).items()}
+    #print(name_to_ncbi)
+    #print(report_to_name)
+    for report_id in report_to_name:
+        if report_to_name[report_id] in name_to_ncbi:
+            report_to_ncbi[report_id] = name_to_ncbi[report_to_name[report_id]]
+        else:
+            report_to_ncbi[report_id] = report_id
+    #print(report_to_ncbi)
+    return parents, children, report_to_ncbi
+
+
 def translate_names(taxonomy_dir, taxon_names):
     taxon_ids = {}
     taxonomy = os.path.join(taxonomy_dir, "names.dmp")
@@ -59,7 +114,7 @@ def translate_names(taxonomy_dir, taxon_names):
                 taxon_id, name, name_type = fields[0].strip(), fields[1].strip(), fields[3].strip()
                 if name not in taxon_names and taxon_id not in taxon_names:
                     continue
-                if name_type != "scientific name":
+                if name_type not in ["scientific name", "equivalent name"]:
                     continue
                 taxon_ids[taxon_id] = name
 
@@ -180,6 +235,9 @@ def get_taxon_id_lists(
     report_entries,
     parents,
     children,
+    report_parents,
+    report_children,
+    report_to_ncbi_dict,
     names=[],
     target_ranks=[],
     min_count=None,
@@ -187,7 +245,7 @@ def get_taxon_id_lists(
     min_percent=None,
     top_n=None,
     include_parents=False,
-    include_children=False,
+    include_children=False
 ):
     lists_to_extract = {}
     for taxon in report_entries:
@@ -200,10 +258,14 @@ def get_taxon_id_lists(
             continue
         if min_percent and entry["percentage"] < min_percent:
             continue
-        if len(names) > 0 and entry["name"] not in names and taxon not in names:
+        if len(names) > 0 and entry["name"] not in names and taxon not in names and report_to_ncbi_dict[taxon] not in names:
             continue
 
-        lists_to_extract[taxon] = get_taxon_list(taxon, include_parents, parents, include_children, children)
+        ncbi_key = report_to_ncbi_dict[taxon]
+        ncbi_ids_from_taxonomy = get_taxon_list(str(ncbi_key), include_parents, parents, include_children, children)
+        ncbi_ids_from_report = get_taxon_list(taxon, include_parents, report_parents, include_children, report_children)
+
+        lists_to_extract[ncbi_key] = list(set(ncbi_ids_from_taxonomy + ncbi_ids_from_report))
 
     for id in names:
         if id not in lists_to_extract:
@@ -580,19 +642,22 @@ def main():
         target_ranks = []
     print(target_ranks)
 
-    # get taxids to extract
-    all_ids = []
+    # get taxids to extract NB input can be names or ids and either can be comma sep list
+    ncbi_ids = []
     for id in args.taxid:
-        all_ids.extend(id.split(","))
-    id_dict = translate_names(args.taxonomy, all_ids)
-    all_ids = id_dict.keys()
-    sys.stdout.write("Restricting to taxa [%s]\n" %(",".join(all_ids)))
+        ncbi_ids.extend(id.split(","))
+    ncbi_ids = [i.strip() for i in ncbi_ids]
+    sys.stdout.write("Trying to find taxa [%s]\n" %(",".join(ncbi_ids)))
+    id_dict = translate_names(args.taxonomy, ncbi_ids)
+    ncbi_ids = id_dict.keys()
+    sys.stdout.write("Restricting to taxa [%s]\n" %(",".join(ncbi_ids)))
 
     parent, children = None, None
     parent, children = load_from_taxonomy(args.taxonomy)
+    report_parents, report_children, report_to_ncbi_dict = infer_hierarchy(args.report_file, args.taxonomy)
 
     report_entries = load_report_file(args.report_file, args.max_human)
-    for taxon in all_ids:
+    for taxon in ncbi_ids:
         if taxon not in report_entries:
             infer_entry(taxon, id_dict[taxon], children, report_entries, parent_rank)
     if '9606' not in report_entries:
@@ -602,7 +667,10 @@ def main():
         report_entries,
         parent,
         children,
-        names=all_ids,
+        report_parents,
+        report_children,
+        report_to_ncbi_dict,
+        names=ncbi_ids,
         target_ranks=target_ranks,
         min_count=args.min_count,
         min_count_descendants=args.min_count_descendants,
