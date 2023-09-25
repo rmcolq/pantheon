@@ -49,6 +49,8 @@ def get_input_info(csv_file):
     with open(csv_file, 'r') as in_csv:
         for line in in_csv:
             barcode, reads, kraken_report = line.strip().split(',')
+            if barcode == "example":
+                continue
             summary_info[barcode] = {
                 "barcode":barcode,
                 "reads": reads,
@@ -63,6 +65,8 @@ def get_extract_info(extract_summary):
         for line in f:
             data = json.loads(line)
             barcode = list(data.keys())[0]
+            if barcode == "example":
+                continue
             extract_info[barcode] = defaultdict(lambda:defaultdict(str))
             for taxon_dict in data[barcode]:
                 taxid = taxon_dict["taxon"]
@@ -113,6 +117,8 @@ def get_reference_info(reference_summary):
     with open(reference_summary, 'r') as in_csv:
         for line in in_csv:
             name, taxid, num_references = line.strip().split(',')
+            if name == "name":
+                continue
             reference_info[taxid] = {"name":name, "taxid":taxid, "num_refs": num_references}
 
     return reference_info

@@ -136,7 +136,9 @@ workflow assemble {
         define_mask(map_to_consensus.out)
         apply_mask(define_mask.out)
         subset_references.out.summary.collectFile(name: "${params.outdir}/${unique_id}/reference_by_barcode.csv", keepHeader: true, skip:1).set{ assembly_summary }
+        default_assembly_file = file("resources/assembly_summary.csv")
+        out_summary = assembly_summary.ifEmpty(default_assembly_file)
     emit:
         completed = apply_mask.out
-        summary = assembly_summary
+        summary = out_summary
     }

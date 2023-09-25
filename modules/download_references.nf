@@ -115,13 +115,17 @@ workflow download_references {
                 .map{ taxid, name, count -> "$name,$taxid,$count" }
                 .collectFile(name: "${params.outdir}/references/references.csv", newLine: true)
                 .set{ reference_summary }
+
+             default_references_file = file("resources/references_summary.csv")
+             out_summary = reference_summary.ifEmpty(default_references_file)
+
             ch_references = filter_references.out.refs
         } else {
             exit 1, "Must provide a list of taxon names with --taxon_names. These should be a comma separated list, and each taxon item should have quotes to allow effective parsing of spaces"
         }
     emit:
         references = filter_references.out.refs
-        summary = reference_summary
+        summary = out_summary
 
 }
 

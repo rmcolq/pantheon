@@ -123,6 +123,8 @@ workflow extract_reads {
             ch_input
                 .join(ch_kraken)
                 .map{ barcode, reads, kraken -> "$barcode,$reads,$kraken" }.collectFile(name: "${params.outdir}/${unique_id}/input.csv", newLine: true).set{ input_summary }
+            default_input_file = file("resources/input_summary.csv")
+            out_summary1 = input_summary.ifEmpty(default_input_file)
 
             ch_input
                 .join(ch_assignments)
@@ -137,6 +139,8 @@ workflow extract_reads {
                 .set{ ch_reads }
 
             extract_kraken_reads.out.summary.collectFile(name: "${params.outdir}/${unique_id}/extract_summary.json").set{ extract_summary }
+            default_extract_file = file("resources/extract_summary.json")
+            out_summary2 = extract_summary.ifEmpty(default_extract_file)
         } else {
             exit 1, "Must provide wf_dir with --wf_dir."
         }
@@ -144,6 +148,6 @@ workflow extract_reads {
 
     emit:
         reads = ch_reads
-        input = input_summary
-        summary = extract_summary
+        input = out_summary1
+        summary = out_summary2
 }
