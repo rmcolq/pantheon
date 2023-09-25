@@ -111,8 +111,8 @@ workflow extract_reads {
             wf_dir = file("${params.wf_dir}", type: "dir", checkIfExists:true)
             ch_kraken = Channel.fromPath("${wf_dir}/output/kraken/*kreport.txt", type: "file", checkIfExists:true).map { [it.simpleName, it]}
             ch_bracken = Channel.fromPath("${wf_dir}/output/bracken/*kreport_bracken_species.txt", type: "file", checkIfExists:true).map { [it.simpleName, it]}
-            ch_assignments1 = Channel.fromPath("${params.wf_dir}/work/*/*/*.kraken2.assignments.tsv", type: "file", checkIfExists:true).map { [it.simpleName, it]}
-            ch_assignments2 = Channel.fromPath("${params.wf_dir}/output/kraken_reads_assignments/*kraken2.assignments.tsv", type: "file", checkIfExists:true).map { [it.simpleName.replace("_lineages",""), it]}
+            ch_assignments1 = Channel.fromPath("${params.wf_dir}/work/*/*/*.kraken2.assignments.tsv", type: "file", checkIfExists:false).map { [it.simpleName, it]}
+            ch_assignments2 = Channel.fromPath("${params.wf_dir}/output/kraken_reads_assignments/*kraken2.assignments.tsv", type: "file", checkIfExists:false).map { [it.simpleName.replace("_lineages",""), it]}
             ch_assignments = ch_assignments2.ifEmpty( ch_assignments1 )
 
             input_taxonomy = file("${params.store_dir}/taxonomy_dir", type: "dir")
