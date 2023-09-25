@@ -655,17 +655,14 @@
       % for row in data_for_report["reference_table"]:
       % for col in data_for_report["reference_table_header"]:
 
-      %if col=="sample":
-      <% this_report = row["sample_report"] %>
-      <% this_barcode = row["barcode"] %>
-      <td><a href="${this_report}" target="_blank" style="color:${themeColor}"><strong>${row[col]}</strong></a></td>
+      %if col=="name":
+      <% this_name = row["name"] %>
+      <% this_taxid = row["taxid"] %>
+      <td><a href="references/references_${this_taxid}.fa" target="_blank" style="color:${themeColor}"><strong>${this_name}</strong></a></td>
       %else:
       <td>${row[col]}</td>
       %endif
       %endfor
-      <!--
-      <td><a download href="published_data/${this_barcode}/${this_barcode}.consensus.fasta" style="color:${themeColor}"><strong>Download FASTA</strong></a></td>
-      -->
       </tr>
       % endfor
       </tbody>
