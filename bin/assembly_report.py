@@ -51,6 +51,8 @@ def get_input_info(csv_file):
             barcode, reads, kraken_report = line.strip().split(',')
             if barcode == "example":
                 continue
+            reads = reads.replace("/mnt/c","")
+            kraken_report = kraken_report.replace("/mnt/c","")
             summary_info[barcode] = {
                 "barcode":barcode,
                 "reads": reads,
