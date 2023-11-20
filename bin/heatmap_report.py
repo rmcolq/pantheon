@@ -31,17 +31,18 @@ def get_summary_info(list_csvs):
                 reader = csv.DictReader(in_csv, delimiter="\t", quotechar='\"', dialect = "unix")
 
             if not index:
-                for key in ["barcode","sample","id"]:
+                for key in ["barcode","sample","id", "sample_id"]:
                     if key in reader.fieldnames:
                         index = key
                         break
 
             if not index or index not in reader.fieldnames:
-                sys.exit("At a minimum, input file needs a 'barcode', 'sample' or 'id' column. Existing columns in %s are %s" %(csv_file, reader.fieldnames))
+                sys.exit("At a minimum, input file needs a 'barcode', 'sample', 'sample_id' or 'id' column. Existing columns in %s are %s" %(csv_file, reader.fieldnames))
 
             for row in reader:
                 sample = row[index]
                 summary_info[sample].update(row)
+                summary_info[sample]["sample"] = sample
                 keys.update(row.keys())
                 if "sample_report" not in row and "sample_report" not in summary_info[sample]:
                     summary_info[sample]["sample_report"] = None
@@ -49,13 +50,13 @@ def get_summary_info(list_csvs):
     file_keys = [key for key in keys if key.endswith("path") or key.endswith("report") or key.endswith("file")]
 
     filepath_key = None
-    for key in ["filepath", "kraken_file"]:
+    for key in ["kraken_file", "kraken_report", "kreport"]:
         if key in file_keys:
             filepath_key = key
             break
 
     if not filepath_key:
-         sys.exit("One of the input files needs a 'filepath' column giving the path to the kraken report. Near match columns found are %s" %file_keys)
+         sys.exit("One of the input files needs a 'kraken_report' column giving the path to the kraken report. Near match columns found are %s" %file_keys)
 
     incomplete = []
     for sample in summary_info:
@@ -117,44 +118,48 @@ def get_sample_counts(samples,sample_to_filepath,list_taxons=None,sample_counts=
 
     for sample in samples:
         file = sample_to_filepath[sample]
-        with file.open('r') as csv_in:
-            domain = None
-            for line in csv_in:
-                if line.startswith("%"):
-                    continue
-                try:
-                    percentage, num_clade_root, num_direct, rank, ncbi, name = line.strip().split('\t')
-                except:
-                    percentage, num_clade_root, num_direct, a, b, rank, ncbi, name = line.strip().split('\t')
+        try:
+            csv_in = file.open('r')
+        except:
+            csv_in = Path(file.name).open('r')
+        domain = "None"
+        for line in csv_in:
+            if line.startswith("%"):
+                continue
+            try:
+                percentage, num_clade_root, num_direct, rank, ncbi, name = line.strip().split('\t')
+            except:
+                percentage, num_clade_root, num_direct, a, b, rank, ncbi, name = line.strip().split('\t')
 
-                name = name.lstrip()
+            name = name.lstrip()
 
-                if name.startswith("Homo"):
-                    count_info[sample]["human"] += int(num_direct)
-                    continue
-                elif name == "unclassified":
-                    count_info[sample]["unclassified"] += int(num_direct)
-                    continue
-                elif name in ['root']:
-                    continue
-                elif list_taxons and name not in list_taxons:
-                    continue
+            if name.startswith("Homo"):
+                count_info[sample]["human"] += int(num_direct)
+                continue
+            elif name == "unclassified":
+                count_info[sample]["unclassified"] += int(num_direct)
+                continue
+            elif name in ['root']:
+                continue
+            elif list_taxons and name not in list_taxons:
+                continue
 
-                count_info[sample]["classified"] += int(num_direct)
-                count_info[sample]["num_taxa"] += 1
+            count_info[sample]["classified"] += int(num_direct)
+            count_info[sample]["num_taxa"] += 1
 
-                if sample not in totals:
-                    totals[sample] = 0
-                totals[sample] += int(num_direct)
+            if sample not in totals:
+                totals[sample] = 0
+            totals[sample] += int(num_direct)
 
-                sample_counts[name]["direct"][sample] = int(num_direct)
-                sample_counts[name]["downstream"][sample] = int(num_clade_root)
-                taxon_info[name]["taxon_ncbi"] = ncbi
-                taxon_info[name]["simple_taxon_rank"] = rank[0]
-                taxon_info[name]["taxon_rank"] = rank
-                if rank == "D":
-                    domain = name
-                taxon_info[name]["domain"] = domain
+            sample_counts[name]["direct"][sample] = int(num_direct)
+            sample_counts[name]["downstream"][sample] = int(num_clade_root)
+            taxon_info[name]["taxon_ncbi"] = ncbi
+            taxon_info[name]["simple_taxon_rank"] = rank[0]
+            taxon_info[name]["taxon_rank"] = rank
+            if rank == "D":
+                domain = name
+            taxon_info[name]["domain"] = domain
+        csv_in.close()
 
     return sample_counts, taxon_info, totals, count_info
 
@@ -252,7 +257,7 @@ def make_data_dict(taxon_info, group_scores, sample_counts, group_map, totals, m
 
     return data_list
 
-def make_output_report(report_to_generate, template, run, data_for_report= {"heatmap_data":"", "summary_table":""}):
+def make_output_report(report_to_generate, template, version, run, data_for_report= {"heatmap_data":"", "summary_table":""}):
     template_dir = os.path.abspath(os.path.dirname(__file__))
     mylookup = TemplateLookup(directories=[template_dir]) #absolute or relative works
     mytemplate = mylookup.get_template(template)
@@ -261,7 +266,7 @@ def make_output_report(report_to_generate, template, run, data_for_report= {"hea
 
     ctx = Context(buf,
                     date = date.today(),
-                    version = "__version__",
+                    version = version,
                     run=run,
                     data_for_report = data_for_report)
 
@@ -288,8 +293,9 @@ def main():
     parser.add_argument("-p","--prefix", help="HTML output prefix ", default="pantheon")
     parser.add_argument("-r","--run", help="Run name", default="Pantheon")
 
-    parser.add_argument("-t","--template", help="HTML template for report", default="pantheon_report.mako.html")
+    parser.add_argument("-t","--template", help="HTML template for report", default="heatmap_report.mako.html")
     parser.add_argument("-m","--min_reads", type=int, help="Threshold for min number reads", default=10)
+    parser.add_argument("--version", help="Pantheon version", default="__version__")
 
     args = parser.parse_args()
 
@@ -310,7 +316,7 @@ def main():
     group_scores = get_scores(sample_counts, taxon_info, groups)
     data_list = make_data_dict(taxon_info, group_scores, sample_counts, group_map, totals, args.min_reads)
 
-    outfile = args.prefix + "_report.html"
+    outfile = args.prefix + "_heatmap_report.html"
 
 
     data_for_report = {}
@@ -324,7 +330,7 @@ def main():
     out_columns.extend(final_columns)
     data_for_report["summary_table_header"] = out_columns
 
-    make_output_report(outfile, args.template, args.run, data_for_report)
+    make_output_report(outfile, args.template, args.version, args.run, data_for_report)
 
 
 if __name__ == "__main__":

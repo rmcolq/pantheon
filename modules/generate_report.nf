@@ -27,3 +27,27 @@ process generate_assembly_report {
           --version ${workflow.manifest.version}
         """
 }
+
+process generate_heatmap_report {
+
+    label 'process_low'
+
+    publishDir path: "${params.outdir}/", mode: 'copy'
+
+    conda 'bioconda::biopython=1.78 anaconda::Mako=1.2.3'
+    container "${params.wf.container}@${params.wf.container_sha}"
+
+    input:
+        val unique_id
+        path index_csv
+        path kreports
+    output:
+        path "${unique_id}_heatmap_report.html"
+
+    script:
+        """
+        heatmap_report.py --input ${index_csv} \
+          --prefix ${unique_id} \
+          --version ${workflow.manifest.version}
+        """
+}
