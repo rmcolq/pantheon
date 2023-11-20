@@ -1,3 +1,3 @@
 sample_id,group,read_path,kraken_report,sample_report
-barcode01,case,test/barcode01/reads_by_taxa,test/case_2_report.txt,
-barcode02,case,test/barcode02/reads_by_taxa,test/case_3_report.txt,
+barcode01,case,test/barcode01/reads_by_taxa,test/barcode01/classifications/barcode01.kraken_report.txt,test/barcode01/barcode01_report.html
+barcode03,case,test/barcode03/reads_by_taxa,test/barcode03/classifications/barcode03.kraken_report.txt,test/barcode03/barcode03_report.html

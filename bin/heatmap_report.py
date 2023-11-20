@@ -106,7 +106,7 @@ def groups_from_info(summary_info):
 
     return groups, group_map
 
-def get_sample_counts(samples,sample_to_filepath,list_taxons=None,sample_counts=None, taxon_info=None, totals=None, count_info=None):
+def get_sample_counts(samples,sample_to_filepath,list_taxons=None,sample_counts=None, taxon_info=None, totals=None, count_info=None, relative_directory="."):
     if not sample_counts:
         sample_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
     if not taxon_info:
@@ -121,7 +121,8 @@ def get_sample_counts(samples,sample_to_filepath,list_taxons=None,sample_counts=
         try:
             csv_in = file.open('r')
         except:
-            csv_in = Path(file.name).open('r')
+            file = Path(os.path.join(relative_directory, file))
+            csv_in = file.open('r')
         domain = "None"
         for line in csv_in:
             if line.startswith("%"):
@@ -296,6 +297,7 @@ def main():
     parser.add_argument("-t","--template", help="HTML template for report", default="heatmap_report.mako.html")
     parser.add_argument("-m","--min_reads", type=int, help="Threshold for min number reads", default=10)
     parser.add_argument("--version", help="Pantheon version", default="__version__")
+    parser.add_argument("--relative_directory", help="The directory where the pipeline was launched", default=".")
 
     args = parser.parse_args()
 
@@ -308,7 +310,7 @@ def main():
     summary_info = get_summary_info(args.input)
 
     groups, group_map = groups_from_info(summary_info)
-    sample_counts,taxon_info,totals,count_info = get_sample_counts(list(groups["all"].keys()), groups["all"])
+    sample_counts,taxon_info,totals,count_info = get_sample_counts(list(groups["all"].keys()), groups["all"], relative_directory=args.relative_directory)
 
     update_summary_info_column(summary_info, "group", group_map)
     update_summary_info_columns(summary_info, count_info)

@@ -24,6 +24,7 @@ process generate_assembly_report {
           --assembly_summary ${assembly_summary} \
           --min_read_count ${params.reference_min_count} \
           --run ${unique_id} \
+          --relative_directory ${launchDir} \
           --version ${workflow.manifest.version}
         """
 }
@@ -40,7 +41,6 @@ process generate_heatmap_report {
     input:
         val unique_id
         path index_csv
-        path kreports
     output:
         path "${unique_id}_heatmap_report.html"
 
@@ -48,6 +48,7 @@ process generate_heatmap_report {
         """
         heatmap_report.py --input ${index_csv} \
           --prefix ${unique_id} \
+          --relative_directory ${launchDir} \
           --version ${workflow.manifest.version}
         """
 }

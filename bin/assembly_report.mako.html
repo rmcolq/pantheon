@@ -553,17 +553,17 @@
 
       %if col=="reads":
       <% this_reads = row["reads"] %>
-      <% this_barcode = row["barcode"] %>
+      <% this_sample_id = row["sample_id"] %>
       <td><a href="${this_reads}" target="_blank" style="color:${themeColor}"><strong>reads</strong></a></td>
       %elif col=="kraken_report":
       <% this_kraken = row["kraken_report"] %>
-      <% this_barcode = row["barcode"] %>
+      <% this_sample_id = row["sample_id"] %>
       <td><a href="${this_kraken}" target="_blank" style="color:${themeColor}"><strong>kraken_report</strong></a></td>
       %elif col=="assemblies":
-      <% this_barcode = row["barcode"] %>
+      <% this_sample_id = row["sample_id"] %>
       <td>
         % for taxid in row["assemblies"]:
-        <a href="${this_barcode}/assemblies/assembly_${taxid}.masked.fa" target="_blank" style="color:${themeColor}"><strong>${row["assemblies"][taxid]}</strong></a>
+        <a href="${this_sample_id}/assemblies/assembly_${taxid}.masked.fa" target="_blank" style="color:${themeColor}"><strong>${row["assemblies"][taxid]}</strong></a>
         %endfor
       </td>
       %else:
@@ -714,7 +714,7 @@
     <br>
 
     <% figure_count = 2 %>
-    <h3><strong>Table 3</strong> | Extracted read count per barcode and reference </h3>
+    <h3><strong>Table 3</strong> | Extracted read count per sample and reference </h3>
     <button class="accordion">Table options</button>
     <div class="panel">
       <div class="row">
