@@ -9,6 +9,8 @@ process taxid_from_name {
     output:
         tuple stdout, val(taxon_name)
     """
+    export NCBI_API_KEY=${params.ncbi_api_key}
+    export EMAIL=${params.email}
     esearch -db taxonomy -query "${taxon_name}" | efetch -format xml  | xtract -pattern Taxon -element TaxId | tr -d '\n'
     """
 }

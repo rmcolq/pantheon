@@ -16,7 +16,7 @@ import os
 from Bio import SeqIO
 import sys
 
-def get_summary_info(list_csvs):
+def get_summary_info(list_csvs, relative_directory):
 
     summary_info = defaultdict(lambda:defaultdict(str))
 
@@ -62,6 +62,8 @@ def get_summary_info(list_csvs):
     for sample in summary_info:
         for key in file_keys:
             if key in summary_info[sample]:
+                if not summary_info[sample][key].startswith("/") and not summary_info[sample][key].startswith("s3:"):
+                    summary_info[sample][key] = os.path.join(relative_directory, summary_info[sample][key])
                 summary_info[sample][key] = Path(summary_info[sample][key])
         summary_info[sample]["filepath"] = summary_info[sample][filepath_key]
         if "group" in keys and "group" not in summary_info[sample]:
@@ -117,50 +119,44 @@ def get_sample_counts(samples,sample_to_filepath,list_taxons=None,sample_counts=
         count_info = defaultdict(lambda:{"human":0, "unclassified":0, "classified":0, "num_taxa":0})
 
     for sample in samples:
-        file = sample_to_filepath[sample]
-        try:
-            csv_in = file.open('r')
-        except:
-            file = Path(os.path.join(relative_directory, file))
-            csv_in = file.open('r')
-        domain = "None"
-        for line in csv_in:
-            if line.startswith("%"):
-                continue
-            try:
-                percentage, num_clade_root, num_direct, rank, ncbi, name = line.strip().split('\t')
-            except:
-                percentage, num_clade_root, num_direct, a, b, rank, ncbi, name = line.strip().split('\t')
+        with open(sample_to_filepath[sample], 'r') as csv_in:
+            domain = "None"
+            for line in csv_in:
+                if line.startswith("%"):
+                    continue
+                try:
+                    percentage, num_clade_root, num_direct, rank, ncbi, name = line.strip().split('\t')
+                except:
+                    percentage, num_clade_root, num_direct, a, b, rank, ncbi, name = line.strip().split('\t')
 
-            name = name.lstrip()
+                name = name.lstrip()
 
-            if name.startswith("Homo"):
-                count_info[sample]["human"] += int(num_direct)
-                continue
-            elif name == "unclassified":
-                count_info[sample]["unclassified"] += int(num_direct)
-                continue
-            elif name in ['root']:
-                continue
-            elif list_taxons and name not in list_taxons:
-                continue
+                if name.startswith("Homo"):
+                    count_info[sample]["human"] += int(num_direct)
+                    continue
+                elif name == "unclassified":
+                    count_info[sample]["unclassified"] += int(num_direct)
+                    continue
+                elif name in ['root']:
+                    continue
+                elif list_taxons and name not in list_taxons:
+                    continue
 
-            count_info[sample]["classified"] += int(num_direct)
-            count_info[sample]["num_taxa"] += 1
+                count_info[sample]["classified"] += int(num_direct)
+                count_info[sample]["num_taxa"] += 1
 
-            if sample not in totals:
-                totals[sample] = 0
-            totals[sample] += int(num_direct)
+                if sample not in totals:
+                    totals[sample] = 0
+                totals[sample] += int(num_direct)
 
-            sample_counts[name]["direct"][sample] = int(num_direct)
-            sample_counts[name]["downstream"][sample] = int(num_clade_root)
-            taxon_info[name]["taxon_ncbi"] = ncbi
-            taxon_info[name]["simple_taxon_rank"] = rank[0]
-            taxon_info[name]["taxon_rank"] = rank
-            if rank == "D":
-                domain = name
-            taxon_info[name]["domain"] = domain
-        csv_in.close()
+                sample_counts[name]["direct"][sample] = int(num_direct)
+                sample_counts[name]["downstream"][sample] = int(num_clade_root)
+                taxon_info[name]["taxon_ncbi"] = ncbi
+                taxon_info[name]["simple_taxon_rank"] = rank[0]
+                taxon_info[name]["taxon_rank"] = rank
+                if rank == "D":
+                    domain = name
+                taxon_info[name]["domain"] = domain
 
     return sample_counts, taxon_info, totals, count_info
 
@@ -307,10 +303,10 @@ def main():
     #
     #data_for_report["summary_table"] = []
 
-    summary_info = get_summary_info(args.input)
+    summary_info = get_summary_info(args.input, args.relative_directory)
 
     groups, group_map = groups_from_info(summary_info)
-    sample_counts,taxon_info,totals,count_info = get_sample_counts(list(groups["all"].keys()), groups["all"], relative_directory=args.relative_directory)
+    sample_counts,taxon_info,totals,count_info = get_sample_counts(list(groups["all"].keys()), groups["all"])
 
     update_summary_info_column(summary_info, "group", group_map)
     update_summary_info_columns(summary_info, count_info)

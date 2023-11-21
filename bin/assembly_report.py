@@ -18,42 +18,40 @@ import sys
 import json
 
 
-def parse_counts(kraken_file, relative_directory):
+def parse_counts(kraken_file):
     counts = defaultdict(int)
-    try:
-        csv_in = open(kraken_file,'r')
-    except:
-        csv_in = open(os.path.join(relative_directory, kraken_file),'r')
-    domain = "None"
-    for line in csv_in:
-        if line.startswith("%"):
-            continue
-        try:
-            percentage, num_clade_root, num_direct, rank, ncbi, name = line.strip().split('\t')
-        except:
-            percentage, num_clade_root, num_direct, a, b, rank, ncbi, name = line.strip().split('\t')
+    with open(kraken_file,'r') as csv_in:
+        domain = "None"
+        for line in csv_in:
+            if line.startswith("%"):
+                continue
+            try:
+                percentage, num_clade_root, num_direct, rank, ncbi, name = line.strip().split('\t')
+            except:
+                percentage, num_clade_root, num_direct, a, b, rank, ncbi, name = line.strip().split('\t')
 
-        name = name.lstrip()
-        num_direct = int(num_direct)
-        num_clade_root = int(num_clade_root)
+            name = name.lstrip()
+            num_direct = int(num_direct)
+            num_clade_root = int(num_clade_root)
 
-        if name.startswith("Homo"):
-            counts["human"] += int(num_direct)
-        elif name == "unclassified":
-            counts["unclassified"] += int(num_direct)
-        else:
-            counts["classified"] += int(num_direct)
-            if num_direct > 0:
-                counts["taxa"] += 1
-    csv_in.close()
+            if name.startswith("Homo"):
+                counts["human"] += int(num_direct)
+            elif name == "unclassified":
+                counts["unclassified"] += int(num_direct)
+            else:
+                counts["classified"] += int(num_direct)
+                if num_direct > 0:
+                    counts["taxa"] += 1
     return counts
 
 def get_input_info(csv_file, relative_directory):
     summary_info = defaultdict(lambda:defaultdict(str))
     with open(csv_file, 'r') as in_csv:
-        try:
+        first = in_csv.readline()
+        in_csv.seek(0)
+        if "sample_id" in first:
             reader = csv.DictReader(in_csv)
-        except:
+        else:
             reader = csv.DictReader(in_csv, fieldnames=["sample_id", "reads", "kraken_report"])
 
         if "reads" in reader.fieldnames:
@@ -66,13 +64,17 @@ def get_input_info(csv_file, relative_directory):
             if sample_id == "example":
                 continue
             reads = reads.replace("/mnt/c","")
+            if not reads.startswith("/") and not reads.startswith("s3:"):
+                reads = os.path.join(relative_directory, reads)
             kraken_report = kraken_report.replace("/mnt/c","")
+            if not kraken_report.startswith("/") and not kraken_report.startswith("s3:"):
+                kraken_report = os.path.join(relative_directory, kraken_report)
             summary_info[sample_id] = {
                 "sample_id":sample_id,
                 "reads": reads,
                 "kraken_report": kraken_report
             }
-            summary_info[sample_id].update(parse_counts(kraken_report, relative_directory))
+            summary_info[sample_id].update(parse_counts(kraken_report))
     return summary_info
 
 def get_extract_info(extract_summary):
@@ -192,15 +194,12 @@ def main():
     data_for_report = {}
 
     summary_info = get_input_info(args.input, args.relative_directory)
-    print(summary_info)
     extract_info = get_extract_info(args.extract_summary)
     update_summary_with_extract_info(summary_info, extract_info, keys=["classified", "unclassified", "human", "taxa", "extracted"])
-    print(summary_info)
 
     ref_info = get_reference_info(args.reference_summary)
     assembly_info = get_assembly_info(args.assembly_summary)
     update_summary_with_assembly_info(summary_info, assembly_info, args.min_read_count)
-    print(summary_info)
     add_taxon_name_to_assembly_info(assembly_info, ref_info)
 
     data_for_report["summary_table_header"] = ["sample_id", "reads", "kraken_report", "classified", "unclassified", "human", "taxa", "extracted", "assembled", "assemblies"]
