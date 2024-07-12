@@ -635,7 +635,7 @@
         "params": [
           {
             "name": "rankSelector",
-            "value": null,
+            "value": "G",
             "bind": {
               "input": "select",
               "options": [null, "D", "K", "P", "C", "O", "F", "G", "S"],
@@ -654,6 +654,16 @@
             }
           },
           {
+            "name": "domainSelector",
+            "value": null,
+            "bind": {
+              "input": "select",
+              "options": [null, "Bacteria", "Viruses", "Archea", "Eukaryota"],
+              "labels": ["all", "Bacteria", "Viruses", "Archea", "Eukaryota"],
+              "name": "Filter taxon domain:  "
+            }
+          },
+          {
             "name": "readSelector",
             "value": "downstream",
             "bind": {
@@ -668,8 +678,8 @@
             "value": null,
             "bind": {
               "input": "select",
-              "options": [null, "${run}"],
-              "labels": ["all", "cases"],
+              "options": ${data_for_report["groups_null"]},
+              "labels": ${data_for_report["groups_all"]},
               "name": "Show samples for:  "
             }
           },
@@ -723,8 +733,8 @@
               },
               "tooltip": [
                 {"field": "taxon", "type": "nominal"},
-                {"field": "taxon_ncbi", "type": "nominal"},
-                {"field": "taxon_rank", "type": "nominal"},
+                {"field": "taxon_id", "type": "nominal"},
+                {"field": "rank", "type": "nominal"},
                 {"field": "sample", "type": "nominal"},
                 {"field": "direct_count", "type": "quantitative"},
                 {"field": "downstream_count", "type": "quantitative"},
@@ -757,8 +767,8 @@
               },
               "tooltip": [
                 {"field": "taxon", "type": "nominal"},
-                {"field": "taxon_ncbi", "type": "nominal"},
-                {"field": "taxon_rank", "type": "nominal"},
+                {"field": "taxon_id", "type": "nominal"},
+                {"field": "rank", "type": "nominal"},
                 {"field": "sample", "type": "nominal"},
                 {"field": "direct_count", "type": "quantitative"},
                 {"field": "downstream_count", "type": "quantitative"},
@@ -791,8 +801,8 @@
               },
               "tooltip": [
                 {"field": "taxon", "type": "nominal"},
-                {"field": "taxon_ncbi", "type": "nominal"},
-                {"field": "taxon_rank", "type": "nominal"},
+                {"field": "taxon_id", "type": "nominal"},
+                {"field": "rank", "type": "nominal"},
                 {"field": "sample", "type": "nominal"},
                 {"field": "direct_count", "type": "quantitative"},
                 {"field": "downstream_count", "type": "quantitative"},
@@ -823,8 +833,8 @@
               },
               "tooltip": [
                 {"field": "taxon", "type": "nominal"},
-                {"field": "taxon_ncbi", "type": "nominal"},
-                {"field": "taxon_rank", "type": "nominal"},
+                {"field": "taxon_id", "type": "nominal"},
+                {"field": "rank", "type": "nominal"},
                 {"field": "sample", "type": "nominal"},
                 {"field": "direct_count", "type": "quantitative"},
                 {"field": "downstream_count", "type": "quantitative"},
@@ -852,8 +862,8 @@
           {
             "filter": {
               "or": [
-                "readSelector == 'direct' && datum.direct.score<=maxScore && datum.direct.score>=minScore && datum.direct.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_taxon_rank == rankSelector) &&(!groupSelector || datum.group == groupSelector)",
-                "readSelector == 'downstream' && datum.downstream.score<=maxScore && datum.downstream.score>=minScore && datum.downstream.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_taxon_rank == rankSelector) &&(!groupSelector || datum.group == groupSelector)"
+                "readSelector == 'direct' && datum.direct.score<=maxScore && datum.direct.score>=minScore && datum.direct.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_rank == rankSelector) &&(!groupSelector || datum.group == groupSelector) &&(!domainSelector || datum.domain == domainSelector)",
+                "readSelector == 'downstream' && datum.downstream.score<=maxScore && datum.downstream.score>=minScore && datum.downstream.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_rank == rankSelector) &&(!groupSelector || datum.group == groupSelector) &&(!domainSelector || datum.domain == domainSelector)"
               ]
             }
           }
