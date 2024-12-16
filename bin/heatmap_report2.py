@@ -114,6 +114,7 @@ def groups_from_info(summary_info, group_column="group", group_default="case"):
             group = "control"
 
         groups[group].append(sample)
+        groups["all"].append(sample)
         group_map[sample] = group
 
 
@@ -126,7 +127,7 @@ def get_sample_counts(summary_info, list_taxa=[]):
         sample_info = kc.get_sample_info(sample)
         new_info = {k:sample_info[k] for k in ('classified','unclassified','host','total') if k in sample_info}
         summary_info[sample].update(new_info)
-    kc.filter_taxa(min_percent_of_samples=5, min_number_of_samples=2, min_percent_of_reads=0, by_group=True)
+    kc.filter_taxa(min_percent_of_samples=0, min_number_of_samples=0, min_percent_of_reads=0, by_group=True)
     kc.taxa = kc.taxa[kc.taxa["pass"]]
     return kc
 
@@ -159,29 +160,35 @@ def get_scores(kraken_combined, groups):
         negative_controls = []
 
     for group in groups:
+        if group == "all":
+            continue
+
         cases = groups[group]
 
-        if "control" in groups:
+        if "control" in groups and group != "control":
             controls = groups["control"]
         else:
             controls = []
             for other in groups:
-                if other not in [group, "negative_control"]:
+                if other not in [group, "all", "negative_control"]:
                     controls.extend(groups[other])
 
         #if group in ["all", "control", "negative_control"]:
         #    continue
         group_scores[group] = get_group_scores(cases, controls, negative_controls, kraken_combined)
 
-    # Add a summary group for all
-    group = "all"
-    cases = [n for n in groups["all"] if n not in negative_controls]
-    controls = []
-    group_scores[group] = get_group_scores(cases,controls,negative_controls,kraken_combined)
+    # Add a summary group for all if have more than 1 group
+    named_groups = [g for g in groups if g not in ["all", "negative_control"]]
+    if len(named_groups) > 1:
+        cases = [n for n in groups["all"] if n not in negative_controls]
+        controls = []
+        group_scores["all"] = get_group_scores(cases,controls,negative_controls,kraken_combined)
+    else:
+        group_scores["all"] = group_scores[named_groups[0]]
 
     return group_scores
 
-def make_data_dict(kraken_combined, group_scores, group_map, min_read_count=10):
+def make_data_dict(kraken_combined, group_scores, group_map, min_read_count=0):
     data_list = []
 
     num_taxa_added = 0
@@ -195,6 +202,8 @@ def make_data_dict(kraken_combined, group_scores, group_map, min_read_count=10):
             if group_scores[group_map[sample]]["downstream"][taxon_id]["case_max_read_count"] < min_read_count:
                 continue
             elif group_scores[group_map[sample]]["downstream"][taxon_id]["score"] != 0:
+                all_score_zero = False
+            elif group_scores["all"]["downstream"][taxon_id]["score"] != 0:
                 all_score_zero = False
         if all_score_zero:
             continue
@@ -216,11 +225,16 @@ def make_data_dict(kraken_combined, group_scores, group_map, min_read_count=10):
             new_dict["direct"]["num_reads"] = kraken_combined.ucounts.loc[taxon_id,sample]
             new_dict["downstream"] = dict(group_scores[group_map[sample]]["downstream"][taxon_id])
             new_dict["downstream"]["num_reads"] = kraken_combined.counts.loc[taxon_id,sample]
+
+            new_dict["direct"]["all_frequency"] = group_scores["all"]["direct"][taxon_id]["case_frequency"]
+            new_dict["downstream"]["all_frequency"] = group_scores["all"]["downstream"][taxon_id]["case_frequency"]
+            new_dict["direct"]["all_max_read_count"] = group_scores["all"]["direct"][taxon_id]["case_max_read_count"]
+            new_dict["downstream"]["all_max_read_count"] = group_scores["all"]["downstream"][taxon_id]["case_max_read_count"]
             data_list.append(new_dict)
 
     return data_list
 
-def make_output_report(report_to_generate, template, version, run, data_for_report= {"groups_null":[], "groups_all":[] ,"heatmap_data":"", "summary_table":""}):
+def make_output_report(report_to_generate, template, version, run, data_for_report= {"num_samples": 1, "groups_null":[], "groups_all":[] ,"heatmap_data":"", "summary_table":""}):
     template_dir = os.path.abspath(os.path.dirname(__file__))
     mylookup = TemplateLookup(directories=[template_dir]) #absolute or relative works
     mytemplate = mylookup.get_template(template)
@@ -257,7 +271,7 @@ def main():
     parser.add_argument("-r","--run", help="Run name", default="Pantheon")
 
     parser.add_argument("-t","--template", help="HTML template for report", default="heatmap_report.mako.html")
-    parser.add_argument("-m","--min_reads", type=int, help="Threshold for min number reads", default=5)
+    parser.add_argument("-m","--min_reads", type=int, help="Threshold for min number reads", default=0)
     parser.add_argument("--version", help="Pantheon version", default="__version__")
     parser.add_argument("--relative_directory", help="The directory where the pipeline was launched", default=".")
 
@@ -275,7 +289,8 @@ def main():
 
 
     data_for_report = {}
-    data_for_report["groups_null"] = [null] + [i for i in list(groups.keys()) if i != "" and i != "all"]
+    data_for_report["num_samples"] = sum([len(g) for g in groups])
+    data_for_report["groups_null"] = ["null"] + [i for i in list(groups.keys()) if i != "" and i != "all"]
     data_for_report["groups_all"] = ["all"] + [i for i in list(groups.keys()) if i != "" and i != "all"]
     data_for_report["heatmap_data"] = data_list
     data_for_report["summary_table"] = [summary_info[sample] for sample in summary_info]

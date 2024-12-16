@@ -46,7 +46,7 @@ process generate_heatmap_report {
 
     script:
         """
-        heatmap_report.py --input ${index_csv} \
+        heatmap_report2.py --input ${index_csv} \
           --prefix ${unique_id} \
           --relative_directory ${launchDir} \
           --version ${workflow.manifest.version}

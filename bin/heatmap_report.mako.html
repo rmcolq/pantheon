@@ -684,8 +684,19 @@
             }
           },
           {
+            "name": "minSamples",
+            "value": 1,
+            "bind": {
+              "input": "range",
+              "min": 0,
+              "max": ${data_for_report["num_samples"]},
+              "step": 1,
+              "name": "Min number samples with taxon: "
+            }
+          },
+          {
             "name": "minScore",
-            "value": 0.1,
+            "value": 0.0,
             "bind": {
               "input": "range",
               "min": -1,
@@ -707,7 +718,7 @@
           },
           {
             "name": "minReadCount",
-            "value": 100,
+            "value": 0,
             "bind": {
               "input": "range",
               "min": 0,
@@ -862,8 +873,8 @@
           {
             "filter": {
               "or": [
-                "readSelector == 'direct' && datum.direct.score<=maxScore && datum.direct.score>=minScore && datum.direct.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_rank == rankSelector) &&(!groupSelector || datum.group == groupSelector) &&(!domainSelector || datum.domain == domainSelector)",
-                "readSelector == 'downstream' && datum.downstream.score<=maxScore && datum.downstream.score>=minScore && datum.downstream.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_rank == rankSelector) &&(!groupSelector || datum.group == groupSelector) &&(!domainSelector || datum.domain == domainSelector)"
+                `readSelector == 'direct' && ((!groupSelector && datum.direct.all_frequency<=maxScore && datum.direct.all_frequency>=minScore && datum.direct.all_frequency>=minSamples/${data_for_report['num_samples']}) || (groupSelector && datum.direct.score<=maxScore && datum.direct.score>=minScore && datum.direct.score>=minSamples/${data_for_report['num_samples']})) && datum.direct.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_rank == rankSelector) &&(!groupSelector || datum.group == groupSelector) &&(!domainSelector || datum.domain == domainSelector)`,
+                "readSelector == 'downstream' && ((!groupSelector && datum.downstream.all_frequency<=maxScore && datum.downstream.all_frequency>=minScore && datum.downstream.all_frequency>=minSamples/${data_for_report['num_samples']}) || (groupSelector && datum.downstream.score<=maxScore && datum.downstream.score>=minScore && datum.downstream.score>=minSamples/${data_for_report['num_samples']})) && datum.downstream.case_max_read_count>=minReadCount &&(!rankSelector || datum.simple_rank == rankSelector) &&(!groupSelector || datum.group == groupSelector) &&(!domainSelector || datum.domain == domainSelector)"
               ]
             }
           }

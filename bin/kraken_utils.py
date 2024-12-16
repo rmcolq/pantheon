@@ -2,6 +2,7 @@ from collections import defaultdict
 import pandas as pd
 import glob
 import os
+import sys
 
 class KrakenEntry:
     def __init__(self, row=None, domain=None, hierarchy=[]):
@@ -149,6 +150,7 @@ class KrakenReport:
         return self.domains
 
     def restrict(self, list_taxa=[], include_children=False):
+        print("Restricting taxa")
         if len(list_taxa) == 0:
             return
 
@@ -261,7 +263,6 @@ class KrakenCombined:
         self.load_from_list_kraken_reports(list_kraken_reports, list_taxa, ranks)
         self.load_from_dict_kraken_reports(dict_kraken_reports, list_taxa, ranks)
 
-
     def load_from_list_kraken_reports(self, list_kraken_reports, list_taxa=[], ranks=[]):
         for file_name in list_kraken_reports:
             k = KrakenReport(file_name)
@@ -286,17 +287,19 @@ class KrakenCombined:
         self.metadata.loc[sample_id] = update
 
     def add_kraken_report_to_counts(self, kraken_report, sample_id, ranks=[]):
-        self.counts = self.counts.join(kraken_report.to_df(sample_id, ranks=ranks), how='outer')
+        self.counts = self.counts.join(kraken_report.to_df(sample_id, ranks=ranks, type="count"), how='outer')
         self.counts.fillna(0, inplace=True)
         self.counts = self.counts.astype('int64')
 
-        self.ucounts = self.ucounts.join(kraken_report.to_df(sample_id, ranks=ranks), how='outer')
+        self.ucounts = self.ucounts.join(kraken_report.to_df(sample_id, ranks=ranks, type="ucount"), how='outer')
         self.ucounts.fillna(0, inplace=True)
         self.ucounts = self.ucounts.astype('int64')
 
     def add_kraken_report_to_taxa(self, kraken_report):
         for taxon_id in kraken_report.entries:
             taxon_dict = kraken_report.entries[taxon_id].to_taxon_dict()
+            if taxon_dict["rank"] == "U":
+                continue
             self.taxa.loc[taxon_id] = taxon_dict
 
     def load_metadata(self, metadata_csv):
@@ -318,7 +321,7 @@ class KrakenCombined:
         self.metadata["pass"] = self.metadata["pass"].fillna(False)
         num_taxa_in_samples = self.counts.astype(bool).sum(axis=0)
         for i,c in num_taxa_in_samples.items():
-            self.metadata.loc[i,"pass"] = (c > min_count)
+            self.metadata.loc[i,"pass"] = (c >= min_count)
 
     def get_taxa_info(self, samples=[], inplace=False):
         if len(samples) > 0:
